@@ -1,0 +1,42 @@
+[
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?doubleclick\\.net[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?googlesyndication\\.com[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?google-analytics\\.com[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?scorecardresearch\\.com[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?taboola\\.com[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?outbrain\\.com[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?coinhive\\.com[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?coin-hive\\.com[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?cryptoloot\\.pro[:/]" },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": { "url-filter": "^https?://([^/]+\\.)?webminepool\\.com[:/]" },
+    "action": { "type": "block" }
+  }
+]

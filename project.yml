@@ -1,0 +1,436 @@
+name: BrowseGuard
+
+options:
+  bundleIdPrefix: com.mybrightzone
+  xcodeVersion: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+    tvOS: "17.0"
+
+# -----------------------------------------------------------------------------
+# Shared settings.
+#
+# The App Group is the spine of this project: five targets in three processes
+# read and write one container. `BROWSEGUARD_APP_GROUP` feeds the
+# BGAppGroupIdentifier Info.plist key, which AppGroup.swift reads at launch.
+# macOS needs the Team ID prefix and iOS/tvOS must not have it, which is why
+# the value is a build setting rather than a constant in the source.
+# -----------------------------------------------------------------------------
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    CLANG_ENABLE_MODULES: YES
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Pinned here rather than left to Xcode's UI: `xcodegen generate` rewrites
+    # the project, so a team set only in the Signing & Capabilities tab is lost
+    # on every regeneration and the build then fails for want of a profile.
+    DEVELOPMENT_TEAM: B8P24AZNQT
+    CODE_SIGN_STYLE: Automatic
+    BROWSEGUARD_APP_GROUP: group.com.mybrightzone.BrowseGuard
+    # Where the app fetches blocklist updates from. Empty = bundled
+    # baseline only. Must be https; see scripts/build_feeds.py.
+    BROWSEGUARD_FEED_URL: ""
+
+fileGroups:
+  - README.md
+  - project.yml
+
+# Reusable fragments -----------------------------------------------------------
+targetTemplates:
+
+  # The content blockers need almost nothing: they resolve the App Group and
+  # hand Safari a file URL. Compiling the whole engine into them bloated a
+  # process that iOS gives a much smaller memory budget than the app, and that
+  # was being killed for memory pressure on device.
+  BlockerSources:
+    sources:
+      - path: Shared/Core/AppGroup.swift
+      - path: ContentBlocker/ContentBlockerRequestHandler.swift
+      - path: ContentBlocker/Resources/blockerList.json
+        buildPhase: resources
+
+  # Sources every other target needs: the engine, the stores, nothing UI-shaped.
+  EngineSources:
+    sources:
+      - path: Shared/Core
+        excludes: ["ExtensionBridge.swift"]
+      - path: Shared/Storage
+
+  # Everything the three apps share on top of the engine.
+  AppSources:
+    templates: [EngineSources]
+    sources:
+      - path: Shared/Core/ExtensionBridge.swift
+      # An Objective-C barrier around the SafariServices XPC calls. Those can
+      # raise an NSException, which Swift cannot catch and which would
+      # otherwise terminate the app during an onboarding status check.
+      - path: Shared/Support/ExceptionBarrier
+      - path: Shared/Sync
+      - path: Shared/Updates
+      - path: Shared/ViewModels
+      - path: Shared/Views
+      # A folder reference, so the feeds land in a `Blocklists/` subdirectory
+      # of the bundle rather than being flattened into its root.
+      - path: Shared/Resources/Blocklists
+        type: folder
+        buildPhase: resources
+
+targets:
+
+  # ===========================================================================
+  # iOS app. Ships the content blocker and the Safari web extension inside it.
+  # ===========================================================================
+  BrowseGuard-iOS:
+    type: application
+    platform: iOS
+    templates: [AppSources]
+    sources:
+      - path: iOS
+        excludes: ["Resources/*.entitlements"]
+    dependencies:
+      - target: BrowseGuardBlocker-iOS
+        embed: true
+      - target: BrowseGuardExtension-iOS
+        embed: true
+    info:
+      path: iOS/Resources/Info.plist
+      properties:
+        CFBundleName: BrowseGuard
+        CFBundleDisplayName: BrowseGuard
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        BGBlocklistFeedURL: $(BROWSEGUARD_FEED_URL)
+        LSApplicationCategoryType: public.app-category.utilities
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuard
+        PRODUCT_NAME: BrowseGuard
+        SWIFT_OBJC_BRIDGING_HEADER: Shared/Support/ExceptionBarrier/BrowseGuard-Bridging-Header.h
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: iOS/Resources/BrowseGuard-iOS.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+
+  # ===========================================================================
+  # macOS app. Same bundle identifier as iOS and tvOS so the App Store treats
+  # all three as one Universal Purchase.
+  # ===========================================================================
+  BrowseGuard-macOS:
+    type: application
+    platform: macOS
+    templates: [AppSources]
+    sources:
+      - path: macOS
+        excludes: ["Resources/*.entitlements"]
+    dependencies:
+      - target: BrowseGuardBlocker-macOS
+        embed: true
+      - target: BrowseGuardExtension-macOS
+        embed: true
+    info:
+      path: macOS/Resources/Info.plist
+      properties:
+        CFBundleName: BrowseGuard
+        CFBundleDisplayName: BrowseGuard
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        BGBlocklistFeedURL: $(BROWSEGUARD_FEED_URL)
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSPrincipalClass: NSApplication
+        NSHumanReadableCopyright: ""
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuard
+        PRODUCT_NAME: BrowseGuard
+        SWIFT_OBJC_BRIDGING_HEADER: Shared/Support/ExceptionBarrier/BrowseGuard-Bridging-Header.h
+        CODE_SIGN_ENTITLEMENTS: macOS/Resources/BrowseGuard-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        # The Team ID prefix is required for a macOS App Store app group.
+        # AppGroup.swift reads the real value back out of the signed
+        # entitlement, so an unexpanded literal here is harmless.
+        BROWSEGUARD_APP_GROUP: $(TeamIdentifierPrefix)group.com.mybrightzone.BrowseGuard
+
+  # ===========================================================================
+  # tvOS app.
+  #
+  # tvOS has no browser and no Safari extension point, so this target filters
+  # nothing. It is the household dashboard: counters, category switches, and
+  # the allowlist, all arriving over iCloud from the iPhone and the Mac.
+  # ===========================================================================
+  BrowseGuard-tvOS:
+    type: application
+    platform: tvOS
+    templates: [AppSources]
+    sources:
+      - path: tvOS
+        excludes: ["Resources/*.entitlements"]
+    info:
+      path: tvOS/Resources/Info.plist
+      properties:
+        CFBundleName: BrowseGuard
+        CFBundleDisplayName: BrowseGuard
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        BGBlocklistFeedURL: $(BROWSEGUARD_FEED_URL)
+        LSApplicationCategoryType: public.app-category.utilities
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuard
+        PRODUCT_NAME: BrowseGuard
+        SWIFT_OBJC_BRIDGING_HEADER: Shared/Support/ExceptionBarrier/BrowseGuard-Bridging-Header.h
+        TARGETED_DEVICE_FAMILY: "3"
+        CODE_SIGN_ENTITLEMENTS: tvOS/Resources/BrowseGuard-tvOS.entitlements
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+
+  # ===========================================================================
+  # Safari content blockers.
+  #
+  # These are the fast path: WebKit evaluates the compiled rules itself, so an
+  # ad or tracker request is stopped without ever waking our code. The rule
+  # file is read from the App Group, which is what lets the app update the
+  # blocklists without an App Store release.
+  # ===========================================================================
+  BrowseGuardBlocker-iOS:
+    type: app-extension
+    platform: iOS
+    templates: [BlockerSources]
+    info:
+      path: ContentBlocker/Support/Info-iOS.plist
+      properties:
+        CFBundleName: BrowseGuard Blocker
+        CFBundleDisplayName: BrowseGuard Blocker
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.content-blocker
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentBlockerRequestHandler
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuard.ContentBlocker
+        # Xcode 16+ splits a target's code into a separate `.debug.dylib` and
+        # leaves a launcher stub as the main binary. That works for an app you
+        # run, but it breaks an app extension: the host launches the appex, the
+        # stub contains none of our classes, `NSExtensionPrincipalClass` cannot
+        # be resolved, and Safari hangs forever waiting for an extension that
+        # never starts — surfacing as a 60s `reloadContentBlocker` timeout with
+        # no extension process in the log at all.
+        ENABLE_DEBUG_DYLIB: NO
+        PRODUCT_NAME: BrowseGuardBlocker
+        CODE_SIGN_ENTITLEMENTS: ContentBlocker/Support/ContentBlocker-iOS.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+
+  BrowseGuardBlocker-macOS:
+    type: app-extension
+    platform: macOS
+    templates: [BlockerSources]
+    info:
+      path: ContentBlocker/Support/Info-macOS.plist
+      properties:
+        CFBundleName: BrowseGuard Blocker
+        CFBundleDisplayName: BrowseGuard Blocker
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.content-blocker
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentBlockerRequestHandler
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuard.macContentBlocker
+        # Xcode 16+ splits a target's code into a separate `.debug.dylib` and
+        # leaves a launcher stub as the main binary. That works for an app you
+        # run, but it breaks an app extension: the host launches the appex, the
+        # stub contains none of our classes, `NSExtensionPrincipalClass` cannot
+        # be resolved, and Safari hangs forever waiting for an extension that
+        # never starts — surfacing as a 60s `reloadContentBlocker` timeout with
+        # no extension process in the log at all.
+        ENABLE_DEBUG_DYLIB: NO
+        PRODUCT_NAME: BrowseGuardBlockerMac
+        CODE_SIGN_ENTITLEMENTS: ContentBlocker/Support/ContentBlocker-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        BROWSEGUARD_APP_GROUP: $(TeamIdentifierPrefix)group.com.mybrightzone.BrowseGuard
+
+  # ===========================================================================
+  # Safari web extensions.
+  #
+  # This is the half that gives real-time protection: it sees each top-level
+  # navigation and asks the native handler for a verdict before the request
+  # goes out. The JavaScript never holds the blocklists or the heuristics —
+  # those stay behind the App Group where a page cannot reach them.
+  # ===========================================================================
+  BrowseGuardExtension-iOS:
+    type: app-extension
+    platform: iOS
+    templates: [EngineSources]
+    sources:
+      - path: WebExtension/SafariWebExtensionHandler.swift
+      - path: WebExtension/Resources/manifest.json
+        buildPhase: resources
+      - path: WebExtension/Resources/background.js
+        buildPhase: resources
+      - path: WebExtension/Resources/content.js
+        buildPhase: resources
+      - path: WebExtension/Resources/pages
+        type: folder
+        buildPhase: resources
+      - path: WebExtension/Resources/images
+        type: folder
+        buildPhase: resources
+    info:
+      path: WebExtension/Support/Info-iOS.plist
+      properties:
+        CFBundleName: BrowseGuard
+        CFBundleDisplayName: BrowseGuard
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.web-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SafariWebExtensionHandler
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuard.Extension
+        # Xcode 16+ splits a target's code into a separate `.debug.dylib` and
+        # leaves a launcher stub as the main binary. That works for an app you
+        # run, but it breaks an app extension: the host launches the appex, the
+        # stub contains none of our classes, `NSExtensionPrincipalClass` cannot
+        # be resolved, and Safari hangs forever waiting for an extension that
+        # never starts — surfacing as a 60s `reloadContentBlocker` timeout with
+        # no extension process in the log at all.
+        ENABLE_DEBUG_DYLIB: NO
+        PRODUCT_NAME: BrowseGuardExtension
+        CODE_SIGN_ENTITLEMENTS: WebExtension/Support/WebExtension-iOS.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+
+  BrowseGuardExtension-macOS:
+    type: app-extension
+    platform: macOS
+    templates: [EngineSources]
+    sources:
+      - path: WebExtension/SafariWebExtensionHandler.swift
+      - path: WebExtension/Resources/manifest.json
+        buildPhase: resources
+      - path: WebExtension/Resources/background.js
+        buildPhase: resources
+      - path: WebExtension/Resources/content.js
+        buildPhase: resources
+      - path: WebExtension/Resources/pages
+        type: folder
+        buildPhase: resources
+      - path: WebExtension/Resources/images
+        type: folder
+        buildPhase: resources
+    info:
+      path: WebExtension/Support/Info-macOS.plist
+      properties:
+        CFBundleName: BrowseGuard
+        CFBundleDisplayName: BrowseGuard
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.web-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SafariWebExtensionHandler
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuard.macExtension
+        # Xcode 16+ splits a target's code into a separate `.debug.dylib` and
+        # leaves a launcher stub as the main binary. That works for an app you
+        # run, but it breaks an app extension: the host launches the appex, the
+        # stub contains none of our classes, `NSExtensionPrincipalClass` cannot
+        # be resolved, and Safari hangs forever waiting for an extension that
+        # never starts — surfacing as a 60s `reloadContentBlocker` timeout with
+        # no extension process in the log at all.
+        ENABLE_DEBUG_DYLIB: NO
+        PRODUCT_NAME: BrowseGuardExtensionMac
+        CODE_SIGN_ENTITLEMENTS: WebExtension/Support/WebExtension-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        BROWSEGUARD_APP_GROUP: $(TeamIdentifierPrefix)group.com.mybrightzone.BrowseGuard
+
+  # ===========================================================================
+  # Tests. Compiles the engine directly with no host app so the matching and
+  # heuristic rules can be exercised headlessly and fast.
+  # ===========================================================================
+  BrowseGuardTests:
+    type: bundle.unit-test
+    platform: macOS
+    templates: [EngineSources]
+    sources:
+      - path: Shared/Updates
+      - path: Tests
+      - path: Shared/Resources/Blocklists
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mybrightzone.BrowseGuardTests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+
+  BrowseGuard-iOS:
+    build:
+      targets:
+        BrowseGuard-iOS: all
+        BrowseGuardTests: [test]
+    test:
+      targets: [BrowseGuardTests]
+    run:
+      config: Debug
+
+  BrowseGuard-macOS:
+    build:
+      targets:
+        BrowseGuard-macOS: all
+        BrowseGuardTests: [test]
+    test:
+      targets: [BrowseGuardTests]
+    run:
+      config: Debug
+
+  BrowseGuard-tvOS:
+    build:
+      targets:
+        BrowseGuard-tvOS: all
+    run:
+      config: Debug

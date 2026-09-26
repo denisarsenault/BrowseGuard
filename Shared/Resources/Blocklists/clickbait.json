@@ -1,0 +1,88 @@
+{
+  "identifier": "clickbait",
+  "name": "Clickbait & Chumbox Baseline",
+  "version": 1,
+  "updatedAt": "2026-09-21T00:00:00Z",
+  "entries": [
+    {
+      "host": "adblade.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "adsterra.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "clickadu.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "content-ad.net",
+      "category": "clickbait"
+    },
+    {
+      "host": "dianomi.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "engageya.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "exoclick.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "hilltopads.net",
+      "category": "clickbait"
+    },
+    {
+      "host": "juicyads.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "mgid.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "outbrain.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "plista.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "popcash.net",
+      "category": "clickbait"
+    },
+    {
+      "host": "propellerads.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "revcontent.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "taboola.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "taboolasyndication.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "trafficjunky.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "zemanta.com",
+      "category": "clickbait"
+    },
+    {
+      "host": "zergnet.com",
+      "category": "clickbait"
+    }
+  ]
+}

@@ -1,0 +1,208 @@
+{
+  "identifier": "tracking",
+  "name": "Tracker & Analytics Baseline",
+  "version": 1,
+  "updatedAt": "2026-09-21T00:00:00Z",
+  "entries": [
+    {
+      "host": "addthis.com",
+      "category": "tracking"
+    },
+    {
+      "host": "adjust.com",
+      "category": "tracking"
+    },
+    {
+      "host": "agkn.com",
+      "category": "tracking"
+    },
+    {
+      "host": "amplitude.com",
+      "category": "tracking"
+    },
+    {
+      "host": "analytics.google.com",
+      "category": "tracking"
+    },
+    {
+      "host": "appsflyer.com",
+      "category": "tracking"
+    },
+    {
+      "host": "bluekai.com",
+      "category": "tracking"
+    },
+    {
+      "host": "bounceexchange.com",
+      "category": "tracking"
+    },
+    {
+      "host": "branch.io",
+      "category": "tracking"
+    },
+    {
+      "host": "braze.com",
+      "category": "tracking"
+    },
+    {
+      "host": "chartbeat.com",
+      "category": "tracking"
+    },
+    {
+      "host": "chartbeat.net",
+      "category": "tracking"
+    },
+    {
+      "host": "clarity.ms",
+      "category": "tracking"
+    },
+    {
+      "host": "connect.facebook.net",
+      "category": "tracking"
+    },
+    {
+      "host": "contentsquare.net",
+      "category": "tracking"
+    },
+    {
+      "host": "crazyegg.com",
+      "category": "tracking"
+    },
+    {
+      "host": "crwdcntrl.net",
+      "category": "tracking"
+    },
+    {
+      "host": "demdex.net",
+      "category": "tracking"
+    },
+    {
+      "host": "everesttech.net",
+      "category": "tracking"
+    },
+    {
+      "host": "exelator.com",
+      "category": "tracking"
+    },
+    {
+      "host": "fullstory.com",
+      "category": "tracking"
+    },
+    {
+      "host": "google-analytics.com",
+      "category": "tracking"
+    },
+    {
+      "host": "googletagmanager.com",
+      "category": "tracking"
+    },
+    {
+      "host": "heapanalytics.com",
+      "category": "tracking"
+    },
+    {
+      "host": "hotjar.com",
+      "category": "tracking"
+    },
+    {
+      "host": "hotjar.io",
+      "category": "tracking"
+    },
+    {
+      "host": "inspectlet.com",
+      "category": "tracking"
+    },
+    {
+      "host": "kissmetrics.io",
+      "category": "tracking"
+    },
+    {
+      "host": "kochava.com",
+      "category": "tracking"
+    },
+    {
+      "host": "krxd.net",
+      "category": "tracking"
+    },
+    {
+      "host": "loggly.com",
+      "category": "tracking"
+    },
+    {
+      "host": "luckyorange.com",
+      "category": "tracking"
+    },
+    {
+      "host": "mathtag.com",
+      "category": "tracking"
+    },
+    {
+      "host": "matomo.cloud",
+      "category": "tracking"
+    },
+    {
+      "host": "mc.yandex.ru",
+      "category": "tracking"
+    },
+    {
+      "host": "mixpanel.com",
+      "category": "tracking"
+    },
+    {
+      "host": "mouseflow.com",
+      "category": "tracking"
+    },
+    {
+      "host": "omtrdc.net",
+      "category": "tracking"
+    },
+    {
+      "host": "optimizely.com",
+      "category": "tracking"
+    },
+    {
+      "host": "parsely.com",
+      "category": "tracking"
+    },
+    {
+      "host": "pixel.facebook.com",
+      "category": "tracking"
+    },
+    {
+      "host": "quantserve.com",
+      "category": "tracking"
+    },
+    {
+      "host": "rlcdn.com",
+      "category": "tracking"
+    },
+    {
+      "host": "scorecardresearch.com",
+      "category": "tracking"
+    },
+    {
+      "host": "segment.com",
+      "category": "tracking"
+    },
+    {
+      "host": "segment.io",
+      "category": "tracking"
+    },
+    {
+      "host": "sharethis.com",
+      "category": "tracking"
+    },
+    {
+      "host": "smartlook.com",
+      "category": "tracking"
+    },
+    {
+      "host": "statcounter.com",
+      "category": "tracking"
+    },
+    {
+      "host": "tapad.com",
+      "category": "tracking"
+    }
+  ]
+}

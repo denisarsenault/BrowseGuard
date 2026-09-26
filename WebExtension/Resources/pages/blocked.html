@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blocked by BrowseGuard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="blocked">
+  <main class="card" role="main">
+    <div class="badge" id="badge" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"></path>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+      </svg>
+    </div>
+
+    <h1 id="headline">Blocked by BrowseGuard</h1>
+    <p class="host" id="host"></p>
+    <p class="explanation" id="explanation"></p>
+
+    <dl class="meta">
+      <div><dt>Category</dt><dd id="category">—</dd></div>
+      <div><dt>Detected by</dt><dd id="source">—</dd></div>
+    </dl>
+
+    <div class="actions">
+      <button id="back" class="primary" type="button">Go back</button>
+      <button id="continue" class="secondary" type="button">Continue anyway</button>
+    </div>
+
+    <p class="fineprint" id="fineprint">
+      Continuing allows this site temporarily. BrowseGuard will ask again later.
+    </p>
+  </main>
+
+  <script src="blocked.js"></script>
+</body>
+</html>

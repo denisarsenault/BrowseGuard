@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>BrowseGuard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="popup">
+  <header class="popup-header">
+    <span class="dot" id="dot"></span>
+    <div>
+      <strong id="state">Checking…</strong><br>
+      <span id="substate"></span>
+    </div>
+  </header>
+
+  <div class="popup-body">
+    <p class="popup-host" id="host"></p>
+    <p class="popup-verdict" id="verdict"></p>
+    <div class="popup-actions">
+      <button class="secondary" id="allow" type="button" hidden>Always allow this site</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

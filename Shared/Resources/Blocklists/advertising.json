@@ -1,0 +1,168 @@
+{
+  "identifier": "advertising",
+  "name": "Ad Networks Baseline",
+  "version": 1,
+  "updatedAt": "2026-09-21T00:00:00Z",
+  "entries": [
+    {
+      "host": "2mdn.net",
+      "category": "advertising"
+    },
+    {
+      "host": "33across.com",
+      "category": "advertising"
+    },
+    {
+      "host": "adcolony.com",
+      "category": "advertising"
+    },
+    {
+      "host": "adform.net",
+      "category": "advertising"
+    },
+    {
+      "host": "adnxs.com",
+      "category": "advertising"
+    },
+    {
+      "host": "adroll.com",
+      "category": "advertising"
+    },
+    {
+      "host": "adsafeprotected.com",
+      "category": "advertising"
+    },
+    {
+      "host": "adservice.google.com",
+      "category": "advertising"
+    },
+    {
+      "host": "adsrvr.org",
+      "category": "advertising"
+    },
+    {
+      "host": "advertising.com",
+      "category": "advertising"
+    },
+    {
+      "host": "amazon-adsystem.com",
+      "category": "advertising"
+    },
+    {
+      "host": "applovin.com",
+      "category": "advertising"
+    },
+    {
+      "host": "bidswitch.net",
+      "category": "advertising"
+    },
+    {
+      "host": "casalemedia.com",
+      "category": "advertising"
+    },
+    {
+      "host": "conversantmedia.com",
+      "category": "advertising"
+    },
+    {
+      "host": "criteo.com",
+      "category": "advertising"
+    },
+    {
+      "host": "criteo.net",
+      "category": "advertising"
+    },
+    {
+      "host": "districtm.io",
+      "category": "advertising"
+    },
+    {
+      "host": "doubleclick.net",
+      "category": "advertising"
+    },
+    {
+      "host": "flashtalking.com",
+      "category": "advertising"
+    },
+    {
+      "host": "googleadservices.com",
+      "category": "advertising"
+    },
+    {
+      "host": "googlesyndication.com",
+      "category": "advertising"
+    },
+    {
+      "host": "gumgum.com",
+      "category": "advertising"
+    },
+    {
+      "host": "indexexchange.com",
+      "category": "advertising"
+    },
+    {
+      "host": "inmobi.com",
+      "category": "advertising"
+    },
+    {
+      "host": "media.net",
+      "category": "advertising"
+    },
+    {
+      "host": "moatads.com",
+      "category": "advertising"
+    },
+    {
+      "host": "openx.net",
+      "category": "advertising"
+    },
+    {
+      "host": "pubmatic.com",
+      "category": "advertising"
+    },
+    {
+      "host": "quantcount.com",
+      "category": "advertising"
+    },
+    {
+      "host": "rubiconproject.com",
+      "category": "advertising"
+    },
+    {
+      "host": "servebom.com",
+      "category": "advertising"
+    },
+    {
+      "host": "sharethrough.com",
+      "category": "advertising"
+    },
+    {
+      "host": "smaato.net",
+      "category": "advertising"
+    },
+    {
+      "host": "smartadserver.com",
+      "category": "advertising"
+    },
+    {
+      "host": "sonobi.com",
+      "category": "advertising"
+    },
+    {
+      "host": "spotxchange.com",
+      "category": "advertising"
+    },
+    {
+      "host": "teads.tv",
+      "category": "advertising"
+    },
+    {
+      "host": "triplelift.com",
+      "category": "advertising"
+    },
+    {
+      "host": "yieldmo.com",
+      "category": "advertising"
+    }
+  ]
+}
