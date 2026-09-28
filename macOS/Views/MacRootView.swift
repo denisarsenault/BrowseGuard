@@ -87,6 +87,8 @@ struct MacOverviewView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .cardBackground()
 
+                ChromeExtensionCard()
+
                 Text("Blocked by category").font(.headline)
                 CategoryStatsGrid(
                     summary: coordinator.summary,

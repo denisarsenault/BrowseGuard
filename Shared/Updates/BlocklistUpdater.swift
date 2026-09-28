@@ -44,25 +44,11 @@ public struct BlocklistUpdater: Sendable {
         self.session = session
     }
 
-    /// HTTPS is required, not preferred. A blocklist fetched over plaintext is
-    /// an instruction set an attacker on the path can rewrite — they could
-    /// unblock their own domain, or block a competitor's, on every device that
-    /// takes the update.
+    /// HTTPS is required, not preferred: a blocklist fetched over plaintext is
+    /// an instruction set an attacker on the path can rewrite. See
+    /// `ConfiguredURL`.
     static func configuredFeedURL(in bundle: Bundle) -> URL? {
-        configuredFeedURL(rawValue: bundle.object(forInfoDictionaryKey: "BGBlocklistFeedURL") as? String)
-    }
-
-    /// Split out from the `Bundle` lookup so the rule can be tested directly.
-    static func configuredFeedURL(rawValue: String?) -> URL? {
-        guard let value = rawValue else { return nil }
-
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              !trimmed.hasPrefix("$("),          // unexpanded build setting
-              let url = URL(string: trimmed),
-              url.scheme?.lowercased() == "https"
-        else { return nil }
-        return url
+        ConfiguredURL.https(infoKey: "BGBlocklistFeedURL", in: bundle)
     }
 
     /// The feeds compiled into the app. These ship so the app protects the

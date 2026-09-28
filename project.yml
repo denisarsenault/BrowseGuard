@@ -38,6 +38,10 @@ settings:
     # Where the app fetches blocklist updates from. Empty = bundled
     # baseline only. Must be https; see scripts/build_feeds.py.
     BROWSEGUARD_FEED_URL: ""
+    # The Chrome Web Store listing, once published. Empty hides the in-app
+    # offer rather than linking somewhere that does not exist yet. Chrome has
+    # no local installer on macOS, so the listing is the only way in.
+    BROWSEGUARD_CHROME_URL: ""
 
 fileGroups:
   - README.md
@@ -159,6 +163,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
         BGBlocklistFeedURL: $(BROWSEGUARD_FEED_URL)
+        BGChromeExtensionURL: $(BROWSEGUARD_CHROME_URL)
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         NSPrincipalClass: NSApplication

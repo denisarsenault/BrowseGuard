@@ -637,30 +637,58 @@ struct FeedEndpointTests {
 
     @Test("Accepts a configured HTTPS endpoint")
     func acceptsHTTPS() {
-        let url = BlocklistUpdater.configuredFeedURL(rawValue: "https://example.com/feeds.json")
+        let url = ConfiguredURL.https(from: "https://example.com/feeds.json")
         #expect(url?.absoluteString == "https://example.com/feeds.json")
         // Surrounding whitespace from a build setting should not defeat it.
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: "  https://example.com/f.json \n") != nil)
+        #expect(ConfiguredURL.https(from: "  https://example.com/f.json \n") != nil)
     }
 
     @Test("Refuses plaintext HTTP")
     func refusesHTTP() {
         // A blocklist fetched over HTTP is an instruction set anyone on the
         // path can rewrite — unblocking their domain on every device.
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: "http://example.com/feeds.json") == nil)
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: "ftp://example.com/feeds.json") == nil)
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: "file:///etc/feeds.json") == nil)
+        #expect(ConfiguredURL.https(from: "http://example.com/feeds.json") == nil)
+        #expect(ConfiguredURL.https(from: "ftp://example.com/feeds.json") == nil)
+        #expect(ConfiguredURL.https(from: "file:///etc/feeds.json") == nil)
     }
 
     @Test("Treats absent, empty, and unexpanded settings as no feed")
     func treatsUnsetAsNoFeed() {
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: nil) == nil)
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: "") == nil)
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: "   ") == nil)
+        #expect(ConfiguredURL.https(from: nil) == nil)
+        #expect(ConfiguredURL.https(from: "") == nil)
+        #expect(ConfiguredURL.https(from: "   ") == nil)
         // An Xcode build setting that never got substituted.
-        #expect(BlocklistUpdater.configuredFeedURL(rawValue: "$(BROWSEGUARD_FEED_URL)") == nil)
+        #expect(ConfiguredURL.https(from: "$(BROWSEGUARD_FEED_URL)") == nil)
     }
 }
 
 /// Anchors `Bundle(for:)` to the test bundle, which is where the feeds land.
 private final class BundleToken {}
+
+// MARK: - Chrome listing
+
+@Suite("Chrome Web Store link")
+struct ChromeListingTests {
+
+    @Test("Accepts a configured HTTPS listing")
+    func acceptsHTTPS() {
+        // Same rule as the update feed: a link the app opens on the user's
+        // behalf should not be downgradeable by anyone on the path.
+        #expect(ConfiguredURL.https(from: "https://chrome.google.com/webstore/detail/abc") != nil)
+    }
+
+    @Test("Hides the offer when unset, empty, or unexpanded")
+    func hidesWhenUnconfigured() {
+        #expect(ConfiguredURL.https(from: nil) == nil)
+        #expect(ConfiguredURL.https(from: "") == nil)
+        #expect(ConfiguredURL.https(from: "   ") == nil)
+        #expect(ConfiguredURL.https(from: "$(BROWSEGUARD_CHROME_URL)") == nil)
+    }
+
+    @Test("Refuses plaintext and non-web schemes")
+    func refusesUnsafeSchemes() {
+        #expect(ConfiguredURL.https(from: "http://example.com/x") == nil)
+        #expect(ConfiguredURL.https(from: "file:///tmp/x") == nil)
+        #expect(ConfiguredURL.https(from: "javascript:alert(1)") == nil)
+    }
+}

@@ -3,13 +3,35 @@
 #
 # Safari's copy is assembled by Xcode from the same Shared/ directory (see the
 # BrowseGuardExtension-* targets in project.yml), so the two browsers ship the
-# same orchestration, block page, popup, content script and heuristics — only
-# manifest.json and engine.js differ.
+# same orchestration, block page, popup and content script — only manifest.json
+# and engine.js differ.
 #
-#   ./scripts/build_chrome.sh [output-dir]      default: dist/chrome
+# There is no local installer for this, and that is Chrome's doing rather than
+# an omission here: Chrome 44 removed external installs from a local .crx on
+# macOS, and an external-extension entry's update URL must point at the Chrome
+# Web Store. A sandboxed App Store app could not write into Chrome's support
+# directory to place one anyway. So the Web Store listing *is* the installer,
+# and `--package` produces the zip you upload to it.
+#
+#   ./scripts/build_chrome.sh              assemble into dist/chrome
+#   ./scripts/build_chrome.sh --package    also produce a Web Store zip
+#   ./scripts/build_chrome.sh some/dir     assemble elsewhere
 set -e
 cd "$(dirname "$0")/.."
-OUT="${1:-dist/chrome}"
+
+PACKAGE=0
+OUT="dist/chrome"
+for arg in "$@"; do
+  case "$arg" in
+    --package) PACKAGE=1 ;;
+    *) OUT="$arg" ;;
+  esac
+done
+
+# Keep the extension's version in step with the apps, so someone comparing the
+# two is not left guessing which is newer.
+VERSION=$(awk -F'"' '/^    MARKETING_VERSION:/ {print $2}' project.yml)
+[ -n "$VERSION" ] || VERSION="1.0"
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -30,20 +52,17 @@ cp WebExtension/Chrome/manifest.json "$OUT/"
 # produces the Swift app's blocklists.
 python3 scripts/build_feeds.py --chrome "$OUT" --base-url "" >/dev/null
 
-# Splice the generated rulesets into the manifest.
-python3 - "$OUT" <<'PY'
-import json, pathlib, sys
-out = pathlib.Path(sys.argv[1])
-manifest = json.loads((out / "manifest.json").read_text())
-resources = [
-    {"id": p.stem, "enabled": True, "path": f"rules/{p.name}"}
-    for p in sorted((out / "rules").glob("*.json"))
-]
-manifest["declarative_net_request"]["rule_resources"] = resources
-(out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-rules = sum(len(json.loads(p.read_text())) for p in (out / "rules").glob("*.json"))
-hosts = sum(len(v) for v in json.loads((out / "lists/hosts.json").read_text()).values())
-print(f"  {len(resources)} rulesets, {rules:,} rules, {hosts:,} hosts")
-PY
+# Splice the generated rulesets into the manifest and stamp the version.
+python3 scripts/finish_chrome_manifest.py "$OUT" "$VERSION"
 
-echo "Chrome extension assembled at $OUT"
+echo "Chrome extension assembled at $OUT (version $VERSION)"
+
+if [ "$PACKAGE" = "1" ]; then
+  ZIP="dist/browseguard-chrome-$VERSION.zip"
+  rm -f "$ZIP"
+  # Zipped from inside the directory: the Web Store expects manifest.json at
+  # the archive root, not nested under a folder.
+  (cd "$OUT" && zip -qr "../../$ZIP" . -x '.*' -x '__MACOSX/*')
+  echo "Web Store package: $ZIP ($(du -h "$ZIP" | cut -f1 | tr -d ' '))"
+  echo "Upload at https://chrome.google.com/webstore/devconsole"
+fi

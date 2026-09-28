@@ -376,6 +376,40 @@ under 2 KB once compiled (a fixed 50 domains per rule put 123 over), and no
 `regexFilter` is used at all because Chrome caps those at 1,000 — translating
 Safari's regex rules directly would have blown that on the first feed.
 
+### Installing it
+
+There is no local installer, and that is Chrome's doing rather than an
+omission. Chrome 44 removed external installs from a local `.crx` on macOS, and
+an external-extension entry's `external_update_url` must point at the Chrome
+Web Store. A sandboxed App Store app could not write into Chrome's support
+directory to place one anyway — the same constraint that ruled out native
+messaging. **The Web Store listing is the installer.**
+
+```bash
+./scripts/build_chrome.sh              # assemble into dist/chrome
+./scripts/build_chrome.sh --package    # + a Web Store zip, version-stamped
+```
+
+`--package` produces `dist/browseguard-chrome-<version>.zip` (~880 KB) ready to
+upload at the [developer console](https://chrome.google.com/webstore/devconsole);
+the version is read from `MARKETING_VERSION` so the extension and the apps stay
+in step. `scripts/finish_chrome_manifest.py` checks the bundle before it is
+packaged and fails rather than shipping something Chrome would reject: every
+manifest reference and script import must resolve, and the rule count, per-rule
+size and regex count must all be within Chrome's limits.
+
+Once published, set `BROWSEGUARD_CHROME_URL` in `project.yml` to the listing
+and the macOS app offers it on the Overview screen. Left empty, the offer is
+hidden rather than linking somewhere that does not exist.
+
+For a managed fleet there is one other legitimate route: the
+`ExtensionInstallForcelist` policy via a configuration profile or MDM. It still
+requires the extension to be on the Web Store, and Chrome marks the browser as
+managed by your organization.
+
+For local testing, load `dist/chrome` unpacked from `chrome://extensions` with
+developer mode on.
+
 ### Keeping the heuristics honest
 
 Chrome has no native side, so `HeuristicScanner` exists twice: once in Swift,
