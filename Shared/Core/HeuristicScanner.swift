@@ -76,12 +76,36 @@ public struct HeuristicScanner: Sendable {
             ))
         }
 
-        if let decoded = URLNormalizer.decodedIDN(host), decoded != host {
-            signals.append(HeuristicSignal(
-                rule: "idn-homograph",
-                explanation: "The name uses non-Latin characters that render like \"\(decoded)\".",
-                weight: 0.45
-            ))
+        // Only a *mixed-script* label is flagged. A domain written entirely in
+        // one non-Latin script is an ordinary international site, and treating
+        // every IDN as an attack would make the app useless outside the
+        // Latin-script web.
+        if let decoded = URLNormalizer.decodedIDN(host) {
+            let decodedLabels = decoded.split(separator: ".").map(String.init)
+            let decodedRegistrable = decodedLabels.count >= 2
+                ? decodedLabels[decodedLabels.count - 2]
+                : (decodedLabels.first ?? "")
+
+            if URLNormalizer.mixesScripts(decoded) {
+                signals.append(HeuristicSignal(
+                    rule: "idn-homograph",
+                    explanation: "The name mixes alphabets so it renders like \"\(decoded)\".",
+                    weight: 0.45
+                ))
+            } else if let skeleton = URLNormalizer.confusableSkeleton(decodedRegistrable),
+                      let brand = protectedBrands.first(where: {
+                          skeleton == $0 || Self.damerauLevenshtein(skeleton, $0) <= 1
+                      }) {
+                // Whole-script lookalike: every character is Cyrillic or Greek,
+                // so nothing is "mixed", but rendered it is indistinguishable
+                // from a brand. This is the аррӏе.com case, and the mixed-script
+                // rule alone misses it entirely.
+                signals.append(HeuristicSignal(
+                    rule: "idn-homograph",
+                    explanation: "\"\(decoded)\" is written in another alphabet to look like \"\(brand)\".",
+                    weight: 0.6
+                ))
+            }
         }
 
         if labels.count >= 5 {

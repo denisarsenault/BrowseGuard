@@ -25,3 +25,6 @@ WebExtension/Support/Info-macOS.plist
 
 # Built by scripts/build_feeds.py and published by CI.
 dist/
+
+# Chrome extension assembled by scripts/build_chrome.sh.
+dist/chrome/

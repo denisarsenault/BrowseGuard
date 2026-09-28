@@ -3,7 +3,6 @@
   "name": "BrowseGuard",
   "version": "1.0",
   "description": "Blocks malware, scams, ads, trackers, and in-browser cryptominers before the page loads.",
-
   "icons": {
     "48": "images/icon-48.png",
     "96": "images/icon-96.png",
@@ -11,21 +10,24 @@
     "256": "images/icon-256.png",
     "512": "images/icon-512.png"
   },
-
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "compat.js",
+        "content.js"
+      ],
       "run_at": "document_start",
       "all_frames": true
     }
   ],
-
   "action": {
     "default_popup": "pages/popup.html",
     "default_icon": {
@@ -33,20 +35,25 @@
       "96": "images/icon-96.png"
     }
   },
-
   "web_accessible_resources": [
     {
-      "resources": ["pages/blocked.html"],
-      "matches": ["http://*/*", "https://*/*"]
+      "resources": [
+        "pages/blocked.html"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
     }
   ],
-
   "permissions": [
     "nativeMessaging",
     "webNavigation",
     "storage",
     "tabs"
   ],
-
-  "host_permissions": ["http://*/*", "https://*/*"]
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
 }

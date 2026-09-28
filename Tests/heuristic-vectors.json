@@ -1,0 +1,172 @@
+[
+  {
+    "host" : "apple.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "google.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "github.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "nytimes.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "en.wikipedia.org",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "developer.apple.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "stackoverflow.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "gogle.com",
+    "risk" : 0.6,
+    "rules" : [
+      "typosquat"
+    ]
+  },
+  {
+    "host" : "paypa1.com",
+    "risk" : 0.6,
+    "rules" : [
+      "typosquat"
+    ]
+  },
+  {
+    "host" : "micosoft.com",
+    "risk" : 0.6,
+    "rules" : [
+      "typosquat"
+    ]
+  },
+  {
+    "host" : "netflx.com",
+    "risk" : 0.6,
+    "rules" : [
+      "typosquat"
+    ]
+  },
+  {
+    "host" : "gogole.com",
+    "risk" : 0.6,
+    "rules" : [
+      "typosquat"
+    ]
+  },
+  {
+    "host" : "apple.com.secure-login.example",
+    "risk" : 0.75,
+    "rules" : [
+      "brand-in-subdomain",
+      "scam-token"
+    ]
+  },
+  {
+    "host" : "icloud-verify.tk",
+    "risk" : 0.5,
+    "rules" : [
+      "high-risk-tld",
+      "scam-token"
+    ]
+  },
+  {
+    "host" : "verify-account.tk",
+    "risk" : 0.8,
+    "rules" : [
+      "high-entropy",
+      "high-risk-tld",
+      "scam-token"
+    ]
+  },
+  {
+    "host" : "secure-login-update-now.xyz",
+    "risk" : 1,
+    "rules" : [
+      "high-entropy",
+      "high-risk-tld",
+      "hyphen-stuffing",
+      "scam-token"
+    ]
+  },
+  {
+    "host" : "192.0.2.14",
+    "risk" : 0.35,
+    "rules" : [
+      "ip-literal"
+    ]
+  },
+  {
+    "host" : "x7q2mzbv9kdf.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  },
+  {
+    "host" : "a1b2c3d4e5.example",
+    "risk" : 0.25,
+    "rules" : [
+      "digit-stuffing"
+    ]
+  },
+  {
+    "host" : "a.b.c.d.example.com",
+    "risk" : 0.2,
+    "rules" : [
+      "deep-subdomain"
+    ]
+  },
+  {
+    "host" : "xn--pple-43d.com",
+    "risk" : 0.7,
+    "rules" : [
+      "hyphen-stuffing",
+      "idn-homograph"
+    ]
+  },
+  {
+    "host" : "xn--80ak6aa92e.com",
+    "risk" : 0.85,
+    "rules" : [
+      "digit-stuffing",
+      "idn-homograph"
+    ]
+  },
+  {
+    "host" : "xn--nxasmm1c.com",
+    "risk" : 0,
+    "rules" : [
+
+    ]
+  }
+]

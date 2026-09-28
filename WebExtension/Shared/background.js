@@ -1,24 +1,33 @@
-// BrowseGuard — service worker.
+// BrowseGuard — service worker orchestration, shared by Safari and Chrome.
 //
-// Sees every top-level navigation, asks the native handler for a verdict, and
-// redirects to the block page when the answer is "block" or "warn".
-//
-// Deliberately thin: no rules, no heuristics, and no user data live here. All
-// of that stays native, behind the App Group, where a compromised page cannot
-// reach it. This file only moves messages and tabs around.
+// This file decides *what happens* to a navigation. It never decides whether a
+// host is bad: that comes from `./engine.js`, which is a different file in each
+// browser's bundle — Safari asks its native handler, Chrome consults lists it
+// carries itself. Keeping the orchestration in one place is what stops the two
+// browsers' behaviour from quietly drifting apart.
 
-const NATIVE_APP = "application.id"; // Safari routes this to our handler.
+import "./compat.js";
+import {
+  evaluateHost,
+  getSettings,
+  bypassHost,
+  reportInPage,
+  prepare,
+} from "./engine.js";
 
-// Verdicts are stable for a given host over a short window, and a page can
-// easily kick off a dozen navigations. Cache briefly so we make one native
-// round trip per host instead of one per redirect hop.
+// Verdicts are stable for a host over a short window, and a page can easily
+// kick off a dozen navigations. Cache briefly so we resolve once per host
+// rather than once per redirect hop.
 const VERDICT_TTL_MS = 30_000;
 // Hard cap as well as a TTL. The TTL alone is checked lazily, on re-query, so
 // a host visited once and never again would sit in the map for the lifetime of
-// the service worker — an unbounded leak across a long browsing session, in a
-// process that gets a much smaller memory budget than the app.
+// the service worker — an unbounded leak across a long browsing session.
 const VERDICT_CACHE_MAX = 500;
 const verdictCache = new Map();
+
+// The URL the user was trying to reach, per tab, so "Continue anyway" knows
+// where to send them back to.
+const pendingNavigation = new Map();
 
 function rememberVerdict(host, verdict) {
   if (verdictCache.size >= VERDICT_CACHE_MAX) {
@@ -37,21 +46,6 @@ function rememberVerdict(host, verdict) {
   verdictCache.set(host, { verdict, at: Date.now() });
 }
 
-// Tracks the URL the user was trying to reach, per tab, so "Continue anyway"
-// on the block page knows where to send them back to.
-const pendingNavigation = new Map();
-
-async function nativeRequest(message) {
-  try {
-    return await browser.runtime.sendNativeMessage(NATIVE_APP, message);
-  } catch (error) {
-    // If the container app was deleted or the App Group is unavailable, fail
-    // open rather than bricking the user's browsing.
-    console.warn("BrowseGuard: native handler unreachable", error);
-    return null;
-  }
-}
-
 function cachedVerdict(host) {
   const entry = verdictCache.get(host);
   if (!entry) return null;
@@ -66,14 +60,12 @@ async function evaluate(host) {
   const cached = cachedVerdict(host);
   if (cached) return cached;
 
-  const verdict = await nativeRequest({ action: "evaluate", host });
-  if (verdict && verdict.ok) {
-    rememberVerdict(host, verdict);
-  }
+  const verdict = await evaluateHost(host);
+  if (verdict && verdict.ok) rememberVerdict(host, verdict);
   return verdict;
 }
 
-function hostOf(url) {
+export function hostOf(url) {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
@@ -112,7 +104,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (details) => {
   if (verdict.decision !== "block" && verdict.decision !== "warn") return;
 
   if (!verdict.showInterstitial) {
-    // Silent mode: stop the load without an interstitial. Still logged natively.
+    // Silent mode: stop the load without an interstitial. Still logged.
     browser.tabs.update(details.tabId, { url: "about:blank" });
     return;
   }
@@ -129,11 +121,7 @@ browser.tabs.onRemoved.addListener((tabId) => {
 browser.runtime.onMessage.addListener(async (message, sender) => {
   switch (message?.action) {
     case "bypass": {
-      const result = await nativeRequest({
-        action: "bypass",
-        host: message.host,
-        category: message.category,
-      });
+      const result = await bypassHost(message.host, message.category);
       verdictCache.delete(message.host);
       const tabId = sender?.tab?.id;
       const target = message.url || (tabId != null ? pendingNavigation.get(tabId) : null);
@@ -154,16 +142,11 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
       // The content script found something the network rules missed, most
       // often a miner injected after load.
       verdictCache.delete(message.host);
-      return await nativeRequest({
-        action: "report",
-        host: message.host,
-        category: message.category,
-        source: "In-page detection",
-      });
+      return await reportInPage(message.host, message.category, "In-page detection");
     }
 
     case "status": {
-      const settings = await nativeRequest({ action: "settings" });
+      const settings = await getSettings();
       const tabs = await browser.tabs.query({ active: true, currentWindow: true });
       const host = tabs[0] ? hostOf(tabs[0].url) : null;
       const verdict = host ? await evaluate(host) : null;
@@ -174,3 +157,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
       return { ok: false, error: "unknown action" };
   }
 });
+
+// Chrome needs its lists loaded before the first navigation; on Safari this is
+// a no-op because the native side already has them.
+prepare().catch((error) => console.warn("BrowseGuard: prepare failed", error));

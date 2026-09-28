@@ -13,13 +13,13 @@ Everything runs on device. Nothing about your browsing leaves the machine.
 
 ## What runs where
 
-| | iOS / iPadOS | macOS | tvOS |
-|---|---|---|---|
-| Safari content blocker (ads, trackers, miners) | ✅ | ✅ | — |
-| Safari web extension (real-time navigation checks, block page) | ✅ | ✅ | — |
-| Heuristic phishing detection | ✅ | ✅ | — |
-| Dashboard, category switches, allowlist | ✅ | ✅ | ✅ |
-| iCloud sync of settings and allowlist | ✅ | ✅ | ✅ |
+| | iOS / iPadOS | macOS | tvOS | Chrome |
+|---|---|---|---|---|
+| Network-level blocking (ads, trackers, miners) | ✅ | ✅ | — | ✅ |
+| Real-time navigation checks, block page | ✅ | ✅ | — | ✅ |
+| Heuristic phishing detection | ✅ | ✅ | — | ✅ |
+| Dashboard, category switches, allowlist | ✅ | ✅ | ✅ | popup only |
+| iCloud sync of settings and allowlist | ✅ | ✅ | ✅ | — |
 
 **tvOS has no web browser and no Safari extension point.** There is nothing on
 an Apple TV to filter, and any app claiming otherwise is not filtering
@@ -322,6 +322,80 @@ actually changes, so devices do not re-download identical feeds. WebKit caps a
 content blocker at 150,000 rules and rejects the whole list past that; the
 compiler budgets to 140,000 and drops the least severe entries first. The
 current catalog compiles to about 42,400.
+
+---
+
+## Chrome
+
+`scripts/build_chrome.sh` assembles a Manifest V3 extension into `dist/chrome`,
+loadable unpacked from `chrome://extensions`. Edge works from the same bundle;
+Firefox is close, with some declarativeNetRequest differences.
+
+### One codebase, two adapters
+
+`WebExtension/Shared/` holds everything browser-agnostic — the service-worker
+orchestration, the block page, the popup, the content script. Only two files
+differ per browser:
+
+| | Safari | Chrome |
+|---|---|---|
+| `manifest.json` | Safari web extension | MV3 + declarativeNetRequest |
+| `engine.js` | asks the native handler | consults lists it carries |
+
+Xcode builds Safari's copy from `Shared/` + `Safari/`; the script builds
+Chrome's from `Shared/` + `Chrome/`. The shared files are byte-identical in
+both, so the browsers cannot drift apart in how a block is handled — only in
+where the verdict comes from.
+
+### Why Chrome carries its own lists
+
+A sandboxed Mac App Store app cannot install a native messaging host manifest
+into `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`, so
+Chrome has no way to reach the Swift engine. Using native messaging would mean
+giving up App Store distribution. The extension is therefore self-contained,
+and **its lists are independent of the Mac and iOS apps** — nothing syncs
+between them, which keeps the "nothing leaves the device" claim intact.
+
+### The same split of labour as Safari
+
+- **declarativeNetRequest** blocks *sub-resource* requests. That is the fast
+  path; no JavaScript runs.
+- **The service worker** handles *top-level navigations*, so a block can show
+  the interstitial and explain itself instead of dropping the user on Chrome's
+  generic error page. `main_frame` is deliberately excluded from the DNR rules
+  so they cannot pre-empt it.
+
+Chrome is the one place that carries the **full** catalog, phishing included:
+its budget is 30,000 static rules guaranteed, and `requestDomains` packs
+~42,900 hosts into about 925 rules. WebKit could not take the same list, which
+is why Safari routes phishing through the engine instead.
+
+Two limits shape the generated rules, and the build fails rather than silently
+exceeding either: rules are packed to a byte budget because each must stay
+under 2 KB once compiled (a fixed 50 domains per rule put 123 over), and no
+`regexFilter` is used at all because Chrome caps those at 1,000 — translating
+Safari's regex rules directly would have blown that on the first feed.
+
+### Keeping the heuristics honest
+
+Chrome has no native side, so `HeuristicScanner` exists twice: once in Swift,
+once in `WebExtension/Shared/heuristics.js`. Two copies of the same rules drift
+unless something stops them, so both run against `Tests/heuristic-vectors.json`:
+
+```bash
+swift scripts/make_heuristic_vectors.swift   # regenerate from Swift
+node scripts/test_heuristics.mjs             # check JavaScript agrees
+```
+
+The Swift suite checks the same file, so a disagreement fails on both sides.
+This paid for itself immediately: the first run found that Swift's IDN
+homograph rule had **never fired**, because it relied on `URL.host` to decode
+punycode and Apple's `URL` hands the encoded form back. Both now decode
+punycode properly and flag two shapes — a label mixing alphabets (`аpple.com`),
+and a whole-script lookalike whose confusable skeleton matches a brand
+(`аррӏе.com`, entirely Cyrillic). A domain written wholly in one non-Latin
+script, like `βόλος.com`, stays clean.
+
 
 ## Platform gotchas
 

@@ -303,17 +303,24 @@ targets:
     templates: [EngineSources]
     sources:
       - path: WebExtension/SafariWebExtensionHandler.swift
-      - path: WebExtension/Resources/manifest.json
+      # Shared with the Chrome build (scripts/build_chrome.sh); only the
+      # manifest and engine.js differ between the two browsers.
+      - path: WebExtension/Shared/background.js
         buildPhase: resources
-      - path: WebExtension/Resources/background.js
+      - path: WebExtension/Shared/content.js
         buildPhase: resources
-      - path: WebExtension/Resources/content.js
+      - path: WebExtension/Shared/compat.js
         buildPhase: resources
-      - path: WebExtension/Resources/pages
+      - path: WebExtension/Shared/pages
         type: folder
         buildPhase: resources
-      - path: WebExtension/Resources/images
+      - path: WebExtension/Shared/images
         type: folder
+        buildPhase: resources
+      # Safari-specific: asks the native handler for verdicts.
+      - path: WebExtension/Safari/manifest.json
+        buildPhase: resources
+      - path: WebExtension/Safari/engine.js
         buildPhase: resources
     info:
       path: WebExtension/Support/Info-iOS.plist
@@ -347,17 +354,24 @@ targets:
     templates: [EngineSources]
     sources:
       - path: WebExtension/SafariWebExtensionHandler.swift
-      - path: WebExtension/Resources/manifest.json
+      # Shared with the Chrome build (scripts/build_chrome.sh); only the
+      # manifest and engine.js differ between the two browsers.
+      - path: WebExtension/Shared/background.js
         buildPhase: resources
-      - path: WebExtension/Resources/background.js
+      - path: WebExtension/Shared/content.js
         buildPhase: resources
-      - path: WebExtension/Resources/content.js
+      - path: WebExtension/Shared/compat.js
         buildPhase: resources
-      - path: WebExtension/Resources/pages
+      - path: WebExtension/Shared/pages
         type: folder
         buildPhase: resources
-      - path: WebExtension/Resources/images
+      - path: WebExtension/Shared/images
         type: folder
+        buildPhase: resources
+      # Safari-specific: asks the native handler for verdicts.
+      - path: WebExtension/Safari/manifest.json
+        buildPhase: resources
+      - path: WebExtension/Safari/engine.js
         buildPhase: resources
     info:
       path: WebExtension/Support/Info-macOS.plist

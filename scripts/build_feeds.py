@@ -341,6 +341,107 @@ def validate(spec: FeedSpec, hosts: set[str], previous: dict | None, body: str) 
 # Emitting
 # --------------------------------------------------------------------------
 
+
+# --------------------------------------------------------------------------
+# Chrome
+# --------------------------------------------------------------------------
+
+# Chrome guarantees an extension 30,000 static declarativeNetRequest rules
+# (more from a shared 300,000 pool, but only if no other content blocker is
+# installed — so 30,000 is the number to design against).
+CHROME_STATIC_RULE_BUDGET = 30_000
+
+# Each rule must stay under 2 KB once compiled. `requestDomains` takes a list,
+# so one rule can carry many hosts — but how many depends on how long those
+# hosts are, which is why rules are packed by byte budget rather than by a
+# fixed count. A fixed count of 50 put 123 rules over the ceiling.
+#
+# The budget leaves headroom below 2,048 because the compiled size is not
+# exactly the JSON length.
+CHROME_RULE_BYTE_BUDGET = 1_700
+
+# Chrome caps `regexFilter` rules at 1,000 across the extension. We use none:
+# `requestDomains` does host matching natively and far more cheaply, which is
+# why the Safari regex rules are not simply translated across.
+CHROME_RESOURCE_TYPES = [
+    "sub_frame", "stylesheet", "script", "image", "font", "object",
+    "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other",
+]
+
+
+def chrome_rules(hosts: list[str], start_id: int) -> list[dict]:
+    """Blocks sub-resource requests to `hosts`, batched to stay under 2 KB.
+
+    `main_frame` is deliberately excluded. Letting declarativeNetRequest kill a
+    top-level navigation would drop the user on Chrome's generic error page;
+    the service worker handles navigations instead so the block page can say
+    what was blocked and why. Same division of labour as Safari's content
+    blocker versus its web extension.
+    """
+    def rule(batch: list[str], rule_id: int) -> dict:
+        return {
+            "id": rule_id,
+            "priority": 1,
+            "action": {"type": "block"},
+            "condition": {
+                "requestDomains": batch,
+                "resourceTypes": CHROME_RESOURCE_TYPES,
+            },
+        }
+
+    # Fixed overhead of everything in the rule except the domains themselves.
+    overhead = len(json.dumps(rule([], 0)))
+
+    rules: list[dict] = []
+    batch: list[str] = []
+    batch_bytes = overhead
+    for host in hosts:
+        entry_bytes = len(host) + 4          # quotes, comma, slack
+        if batch and batch_bytes + entry_bytes > CHROME_RULE_BYTE_BUDGET:
+            rules.append(rule(batch, start_id + len(rules)))
+            batch, batch_bytes = [], overhead
+        batch.append(host)
+        batch_bytes += entry_bytes
+    if batch:
+        rules.append(rule(batch, start_id + len(rules)))
+    return rules
+
+
+def write_chrome(out_dir: pathlib.Path, feeds: dict[str, list[str]]) -> dict:
+    """Emits Chrome's static rulesets, the navigation host list, and the
+    manifest fragment that declares them."""
+    lists_dir = out_dir / "lists"
+    rules_dir = out_dir / "rules"
+    for directory in (lists_dir, rules_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    # The service worker needs hosts, not rules: it answers navigation checks.
+    write_json(lists_dir / "hosts.json", {k: sorted(v) for k, v in feeds.items()})
+
+    rule_resources = []
+    next_id = 1
+    total_rules = 0
+    for identifier, hosts in sorted(feeds.items()):
+        rules = chrome_rules(sorted(hosts), next_id)
+        next_id += len(rules)
+        total_rules += len(rules)
+        path = rules_dir / f"{identifier}.json"
+        write_json(path, rules)
+        rule_resources.append({
+            "id": identifier,
+            "enabled": True,
+            "path": f"rules/{identifier}.json",
+        })
+
+    if total_rules > CHROME_STATIC_RULE_BUDGET:
+        raise ValidationError(
+            f"chrome: {total_rules} static rules exceeds the {CHROME_STATIC_RULE_BUDGET} "
+            "guaranteed to an extension; increase CHROME_DOMAINS_PER_RULE or drop a feed"
+        )
+
+    return {"rule_resources": rule_resources, "rule_count": total_rules}
+
+
 def load_existing(identifier: str) -> dict | None:
     path = BUNDLED / f"{identifier}.json"
     if not path.exists():
@@ -383,9 +484,12 @@ def main() -> int:
     parser.add_argument("--check-only", action="store_true", help="Validate but write nothing.")
     parser.add_argument("--update-bundled", action="store_true",
                         help="Also refresh Shared/Resources/Blocklists (a release-time action).")
+    parser.add_argument("--chrome", metavar="DIR",
+                        help="Also emit Chrome rulesets and host lists into DIR.")
     args = parser.parse_args()
 
     index_feeds = []
+    chrome_feeds: dict[str, list[str]] = {}
     all_warnings: list[str] = []
     failures: list[str] = []
     total = 0
@@ -408,6 +512,7 @@ def main() -> int:
 
         all_warnings.extend(warnings)
         payload = build_payload(spec, hosts, previous)
+        chrome_feeds[spec.identifier] = sorted(hosts)
         total += len(hosts)
 
         status = "snapshot" if spec.snapshot else "live"
@@ -443,6 +548,20 @@ def main() -> int:
         # A partial publish is worse than none: the app would take a truncated
         # index as authoritative and could lose categories it already had.
         return 1
+
+    if args.chrome and not args.check_only:
+        # The hand-curated ad/tracker/clickbait baselines are not fetched, but
+        # Chrome should still block them — pull them from the bundled feeds.
+        for extra in ("advertising", "tracking", "clickbait"):
+            bundled = load_existing(extra)
+            if bundled:
+                chrome_feeds.setdefault(
+                    extra, sorted({e["host"] for e in bundled.get("entries", [])})
+                )
+        chrome_out = pathlib.Path(args.chrome)
+        result = write_chrome(chrome_out, chrome_feeds)
+        print(f"\nChrome: {result['rule_count']:,} static rules "
+              f"({sum(len(v) for v in chrome_feeds.values()):,} hosts) -> {chrome_out}")
 
     if not args.check_only:
         write_json(DIST / "feeds.json", {"feeds": index_feeds})
