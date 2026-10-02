@@ -35,9 +35,16 @@ public struct SiteCheckerView: View {
             }
 
             if let verdict {
-                VerdictCard(verdict: verdict) {
-                    Task { await coordinator.allow(host: verdict.host) }
-                }
+                VerdictCard(
+                    verdict: verdict,
+                    onAllow: { Task { await coordinator.allow(host: verdict.host) } },
+                    onBlock: {
+                        Task {
+                            await coordinator.block(host: verdict.host)
+                            self.verdict = coordinator.engine.evaluate(host: verdict.host)
+                        }
+                    }
+                )
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -55,10 +62,16 @@ public struct SiteCheckerView: View {
 public struct VerdictCard: View {
     let verdict: Verdict
     let onAllow: (() -> Void)?
+    let onBlock: (() -> Void)?
 
-    public init(verdict: Verdict, onAllow: (() -> Void)? = nil) {
+    public init(
+        verdict: Verdict,
+        onAllow: (() -> Void)? = nil,
+        onBlock: (() -> Void)? = nil
+    ) {
         self.verdict = verdict
         self.onAllow = onAllow
+        self.onBlock = onBlock
     }
 
     private var tint: Color {
@@ -129,9 +142,18 @@ public struct VerdictCard: View {
                 }
             }
 
-            if verdict.isBlocking, let onAllow {
-                Button("Add \(verdict.host) to allowlist", action: onAllow)
-                    .buttonStyle(.bordered)
+            // A clean verdict still needs an action. Checking a site you simply
+            // do not want to load and finding nothing to press is the most
+            // obvious way to conclude that blocking "does not work".
+            HStack {
+                if verdict.isBlocking, let onAllow {
+                    Button("Allow \(verdict.host)", action: onAllow)
+                        .buttonStyle(.bordered)
+                }
+                if verdict.category != .userBlocked, let onBlock {
+                    Button("Block \(verdict.host)", action: onBlock)
+                        .buttonStyle(.bordered)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

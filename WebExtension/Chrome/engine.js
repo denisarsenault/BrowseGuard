@@ -238,6 +238,24 @@ export async function bypassHost(host, category) {
   return { ok: true, expiresIn: settings.temporaryBypassDuration };
 }
 
+export async function blockHost(host) {
+  const blocklist = await stored(BLOCKLIST_KEY, {});
+  blocklist[host] = { addedAt: Date.now() };
+  // Blocking something previously allowed should just work, rather than
+  // silently losing to a stale allowlist entry.
+  const allowlist = await stored(ALLOWLIST_KEY, {});
+  delete allowlist[host];
+  await browser.storage.local.set({ [BLOCKLIST_KEY]: blocklist, [ALLOWLIST_KEY]: allowlist });
+  return { ok: true, count: Object.keys(blocklist).length };
+}
+
+export async function unblockHost(host) {
+  const blocklist = await stored(BLOCKLIST_KEY, {});
+  delete blocklist[host];
+  await browser.storage.local.set({ [BLOCKLIST_KEY]: blocklist });
+  return { ok: true, count: Object.keys(blocklist).length };
+}
+
 export async function reportInPage(host, category, source) {
   const settings = { ...DEFAULT_SETTINGS, ...(await stored(SETTINGS_KEY, {})) };
   if (!settings.logsActivity) return { ok: true };

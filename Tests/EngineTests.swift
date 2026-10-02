@@ -509,6 +509,41 @@ struct UserBlocklistTests {
         #expect(blockIndex > ignoreIndex)
     }
 
+    @Test("An ordinary site with a clean verdict can still be blocked")
+    func blocksAnOrdinarySite() {
+        // The reported case: cnn.com is on no threat feed and trips no
+        // heuristic, so it comes back clean. Adding it must still block it —
+        // the user block list is not conditional on the site being suspicious.
+        let clean = engine()
+        #expect(clean.evaluate(host: "cnn.com").decision == .allow)
+
+        let blocked = engine(blocked: ["cnn.com"])
+        let verdict = blocked.evaluate(host: "cnn.com")
+        #expect(verdict.decision == .block)
+        #expect(verdict.category == .userBlocked)
+        // Subdomains too, since that is what people expect from "block cnn.com".
+        #expect(blocked.evaluate(host: "edition.cnn.com").decision == .block)
+        #expect(blocked.evaluate(host: "www.cnn.com").decision == .block)
+    }
+
+    @Test("Blocking a site reaches the compiled Safari rules")
+    func blockedSiteReachesWebKit() throws {
+        let rules = ContentRuleCompiler.compile(
+            catalog: .empty,
+            settings: .default,
+            allowlist: .empty,
+            userBlocklist: UserBlocklist(items: [BlockedSite(host: "cnn.com")])
+        )
+        let pattern = try #require(rules.last { $0.action.type == "block" }).trigger.urlFilter
+        let regex = try NSRegularExpression(pattern: pattern)
+        func matches(_ url: String) -> Bool {
+            regex.firstMatch(in: url, range: NSRange(url.startIndex..., in: url)) != nil
+        }
+        #expect(matches("https://cnn.com/"))
+        #expect(matches("https://edition.cnn.com/world"))
+        #expect(!matches("https://cnnvideo.ru/"))
+    }
+
     @Test("Add replaces rather than duplicates, and remove works")
     func mutation() {
         var list = UserBlocklist()

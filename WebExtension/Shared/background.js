@@ -11,6 +11,8 @@ import {
   evaluateHost,
   getSettings,
   bypassHost,
+  blockHost,
+  unblockHost,
   reportInPage,
   prepare,
 } from "./engine.js";
@@ -129,6 +131,19 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
         pendingNavigation.delete(tabId);
         browser.tabs.update(tabId, { url: target });
       }
+      return result || { ok: false };
+    }
+
+    case "block": {
+      const result = await blockHost(message.host);
+      // The verdict for this host just changed; do not serve the old one.
+      verdictCache.delete(message.host);
+      return result || { ok: false };
+    }
+
+    case "unblock": {
+      const result = await unblockHost(message.host);
+      verdictCache.delete(message.host);
       return result || { ok: false };
     }
 

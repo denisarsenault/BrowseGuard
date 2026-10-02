@@ -22,6 +22,8 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         case evaluate      // { host } -> verdict
         case report        // { host, category, decision } -> ok
         case bypass        // { host, category } -> allowlist updated
+        case block         // { host } -> added to the user block list
+        case unblock       // { host } -> removed from it
         case settings      // -> the settings the content script needs
         case ping          // health check used by the popup
     }
@@ -101,6 +103,21 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 source: message["source"] as? String
             ))
             return ["ok": true]
+
+        case .block:
+            guard let host = message["host"] as? String else {
+                return ["ok": false, "error": "missing host"]
+            }
+            let list = UserBlocklistStore.add(host: host)
+            log.notice("User blocked a host from the extension")
+            return ["ok": true, "count": list.items.count]
+
+        case .unblock:
+            guard let host = message["host"] as? String else {
+                return ["ok": false, "error": "missing host"]
+            }
+            let list = UserBlocklistStore.remove(host: host)
+            return ["ok": true, "count": list.items.count]
 
         case .bypass:
             guard let host = message["host"] as? String else {

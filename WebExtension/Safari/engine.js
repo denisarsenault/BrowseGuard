@@ -32,6 +32,14 @@ export async function bypassHost(host, category) {
   return nativeRequest({ action: "bypass", host, category });
 }
 
+export async function blockHost(host) {
+  return nativeRequest({ action: "block", host });
+}
+
+export async function unblockHost(host) {
+  return nativeRequest({ action: "unblock", host });
+}
+
 export async function reportInPage(host, category, source) {
   return nativeRequest({ action: "report", host, category, source });
 }
