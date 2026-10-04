@@ -92,7 +92,7 @@ struct MacOverviewView: View {
                 Text("Blocked by category").font(.headline)
                 CategoryStatsGrid(
                     summary: coordinator.summary,
-                    enabledCategories: coordinator.settings.enabledCategories
+                    settings: coordinator.settings
                 )
 
                 if !coordinator.events.isEmpty {

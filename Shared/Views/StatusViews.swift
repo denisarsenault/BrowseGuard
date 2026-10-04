@@ -106,11 +106,11 @@ public struct StatTile: View {
 /// Per-category totals, sized for whatever platform it lands on.
 public struct CategoryStatsGrid: View {
     let summary: ActivitySummary
-    let enabledCategories: Set<ThreatCategory>
+    let settings: ProtectionSettings
 
-    public init(summary: ActivitySummary, enabledCategories: Set<ThreatCategory>) {
+    public init(summary: ActivitySummary, settings: ProtectionSettings) {
         self.summary = summary
-        self.enabledCategories = enabledCategories
+        self.settings = settings
     }
 
     public var body: some View {
@@ -123,11 +123,11 @@ public struct CategoryStatsGrid: View {
                     value: summary.byCategory[category] ?? 0,
                     label: category.title,
                     symbolName: category.symbolName,
-                    tint: enabledCategories.contains(category)
+                    tint: settings.isEnabled(category)
                         ? Theme.color(for: category)
                         : Theme.disabled
                 )
-                .opacity(enabledCategories.contains(category) ? 1 : 0.5)
+                .opacity(settings.isEnabled(category) ? 1 : 0.5)
             }
         }
     }

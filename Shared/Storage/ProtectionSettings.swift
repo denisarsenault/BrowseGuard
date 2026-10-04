@@ -99,7 +99,14 @@ public struct ProtectionSettings: Codable, Sendable, Equatable {
     public static let `default` = ProtectionSettings()
 
     public func isEnabled(_ category: ThreatCategory) -> Bool {
-        isProtectionEnabled && enabledCategories.contains(category)
+        guard isProtectionEnabled else { return false }
+        // Categories the user cannot switch off are never looked up in
+        // `enabledCategories`. Reading them from it meant that settings saved
+        // before such a category existed reported it disabled forever — which
+        // is how "Blocked by You" came to render greyed out while happily
+        // blocking eight sites.
+        guard ThreatCategory.toggleable.contains(category) else { return true }
+        return enabledCategories.contains(category)
     }
 
     // Decoding tolerates settings written by an older build: any key that is

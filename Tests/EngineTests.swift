@@ -366,6 +366,35 @@ struct StorageModelTests {
         #expect(settings.enabledCategories == ProtectionSettings.default.enabledCategories)
     }
 
+    @Test("A category added after settings were saved is not reported disabled")
+    func nonToggleableCategorySurvivesOldSettings() throws {
+        // Real settings written before `userBlocked` existed: the stored set
+        // has the original seven. Reading a non-toggleable category out of
+        // that set reported it disabled forever, which greyed out the
+        // "Blocked by You" tile while blocking was working fine.
+        let old = Data("""
+        {"isProtectionEnabled": true,
+         "enabledCategories": ["malware","scam","advertising","tracking",
+                               "clickbait","cryptojacking","pup"]}
+        """.utf8)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let settings = try decoder.decode(ProtectionSettings.self, from: old)
+
+        #expect(!settings.enabledCategories.contains(.userBlocked))
+        #expect(settings.isEnabled(.userBlocked), "a category the user cannot switch off is always on")
+        // The toggleable ones still answer from what was stored.
+        #expect(settings.isEnabled(.malware))
+    }
+
+    @Test("The master switch still turns off even non-toggleable categories")
+    func masterSwitchBeatsNonToggleable() {
+        var settings = ProtectionSettings.default
+        settings.isProtectionEnabled = false
+        #expect(!settings.isEnabled(.userBlocked))
+        #expect(!settings.isEnabled(.malware))
+    }
+
     @Test("Pruning drops lapsed entries and keeps permanent ones")
     func pruning() {
         var allowlist = Allowlist(items: [

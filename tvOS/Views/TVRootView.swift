@@ -56,7 +56,7 @@ struct TVOverviewView: View {
                 Text("Blocked by category").font(.title2)
                 CategoryStatsGrid(
                     summary: coordinator.summary,
-                    enabledCategories: coordinator.settings.enabledCategories
+                    settings: coordinator.settings
                 )
 
                 Label(

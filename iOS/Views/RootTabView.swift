@@ -49,7 +49,7 @@ struct HomeView: View {
 
                 CategoryStatsGrid(
                     summary: coordinator.summary,
-                    enabledCategories: coordinator.settings.enabledCategories
+                    settings: coordinator.settings
                 )
             }
             .padding()
