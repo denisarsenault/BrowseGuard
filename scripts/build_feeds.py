@@ -372,11 +372,8 @@ CHROME_RESOURCE_TYPES = [
 def chrome_rules(hosts: list[str], start_id: int) -> list[dict]:
     """Blocks sub-resource requests to `hosts`, batched to stay under 2 KB.
 
-    `main_frame` is deliberately excluded. Letting declarativeNetRequest kill a
-    top-level navigation would drop the user on Chrome's generic error page;
-    the service worker handles navigations instead so the block page can say
-    what was blocked and why. Same division of labour as Safari's content
-    blocker versus its web extension.
+    `main_frame` is handled by a separate redirect rule rather than by this
+    one, because an image request and a page load need different actions.
     """
     def rule(batch: list[str], rule_id: int) -> dict:
         return {
@@ -407,6 +404,54 @@ def chrome_rules(hosts: list[str], start_id: int) -> list[dict]:
     return rules
 
 
+def chrome_navigation_rules(hosts: list[str], start_id: int) -> list[dict]:
+    """Redirects top-level navigations to the block page, at the network layer.
+
+    This has to be declarative. `webNavigation.onBeforeNavigate` only observes
+    a navigation — it cannot cancel one — so the service worker's redirect
+    lands *after* the page has begun loading and running scripts. A blocked
+    site still got to pop up its own dialogs before disappearing, which for a
+    malware host means the attack already ran.
+
+    declarativeNetRequest stops the request before it is sent, so the page
+    never executes. The block page recovers what was blocked by asking the
+    service worker about its tab, since `extensionPath` cannot carry it.
+    """
+    rules = []
+    overhead = len(json.dumps({
+        "id": 0, "priority": 2,
+        "action": {"type": "redirect", "redirect": {"extensionPath": "/pages/blocked.html?via=net"}},
+        "condition": {"requestDomains": [], "resourceTypes": ["main_frame"]},
+    }))
+
+    batch: list[str] = []
+    batch_bytes = overhead
+    for host in hosts:
+        entry_bytes = len(host) + 4
+        if batch and batch_bytes + entry_bytes > CHROME_RULE_BYTE_BUDGET:
+            rules.append(_navigation_rule(batch, start_id + len(rules)))
+            batch, batch_bytes = [], overhead
+        batch.append(host)
+        batch_bytes += entry_bytes
+    if batch:
+        rules.append(_navigation_rule(batch, start_id + len(rules)))
+    return rules
+
+
+def _navigation_rule(batch: list[str], rule_id: int) -> dict:
+    return {
+        "id": rule_id,
+        # Above the sub-resource rules, so a page load redirects rather than
+        # simply failing.
+        "priority": 2,
+        "action": {
+            "type": "redirect",
+            "redirect": {"extensionPath": "/pages/blocked.html?via=net"},
+        },
+        "condition": {"requestDomains": batch, "resourceTypes": ["main_frame"]},
+    }
+
+
 def write_chrome(out_dir: pathlib.Path, feeds: dict[str, list[str]]) -> dict:
     """Emits Chrome's static rulesets, the navigation host list, and the
     manifest fragment that declares them."""
@@ -424,6 +469,9 @@ def write_chrome(out_dir: pathlib.Path, feeds: dict[str, list[str]]) -> dict:
     for identifier, hosts in sorted(feeds.items()):
         rules = chrome_rules(sorted(hosts), next_id)
         next_id += len(rules)
+        navigation = chrome_navigation_rules(sorted(hosts), next_id)
+        next_id += len(navigation)
+        rules = rules + navigation
         total_rules += len(rules)
         path = rules_dir / f"{identifier}.json"
         write_json(path, rules)

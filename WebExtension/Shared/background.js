@@ -31,6 +31,10 @@ const verdictCache = new Map();
 // where to send them back to.
 const pendingNavigation = new Map();
 
+// What the network layer blocked in each tab. A declarative redirect can only
+// name a static page, so the block page asks us what it is standing in for.
+const lastBlock = new Map();
+
 function rememberVerdict(host, verdict) {
   if (verdictCache.size >= VERDICT_CACHE_MAX) {
     const now = Date.now();
@@ -93,8 +97,18 @@ function blockPageURL(verdict, originalURL) {
   return `${page}?${params.toString()}`;
 }
 
-// The navigation hook. `onBeforeNavigate` fires before the request goes out,
-// which is what lets us stop a malware host from ever being contacted.
+// The navigation hook.
+//
+// `onBeforeNavigate` only *observes* a navigation — it cannot cancel one, and
+// returning a promise defers nothing. So by the time the redirect below lands,
+// the page has already begun loading and running scripts: a blocked site still
+// got to pop up its own dialogs first.
+//
+// Anything on a list is therefore stopped declaratively instead (Safari's
+// content blocker, Chrome's declarativeNetRequest), before the request is
+// sent. What is left here is the case rules cannot express — a heuristic
+// verdict on a host no list has seen — plus recording what happened so the
+// block page can explain itself.
 browser.webNavigation.onBeforeNavigate.addListener(async (details) => {
   if (details.frameId !== 0) return; // Top-level documents only.
 
@@ -112,11 +126,15 @@ browser.webNavigation.onBeforeNavigate.addListener(async (details) => {
   }
 
   pendingNavigation.set(details.tabId, details.url);
+  lastBlock.set(details.tabId, { verdict, url: details.url, at: Date.now() });
+  // Harmless when the declarative rules already redirected: the tab is on the
+  // block page, and setting it there again is a no-op.
   browser.tabs.update(details.tabId, { url: blockPageURL(verdict, details.url) });
 });
 
 browser.tabs.onRemoved.addListener((tabId) => {
   pendingNavigation.delete(tabId);
+  lastBlock.delete(tabId);
 });
 
 // Messages from the block page, the popup, and the content script.
@@ -145,6 +163,14 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
       const result = await unblockHost(message.host);
       verdictCache.delete(message.host);
       return result || { ok: false };
+    }
+
+    case "context": {
+      // Asked by the block page when the network layer redirected it there
+      // and it has no query string to read.
+      const tabId = sender?.tab?.id;
+      const recorded = tabId != null ? lastBlock.get(tabId) : null;
+      return recorded ? { ok: true, ...recorded } : { ok: false };
     }
 
     case "goBack": {

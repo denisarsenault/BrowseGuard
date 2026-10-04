@@ -378,12 +378,23 @@ between them, which keeps the "nothing leaves the device" claim intact.
 
 ### The same split of labour as Safari
 
-- **declarativeNetRequest** blocks *sub-resource* requests. That is the fast
-  path; no JavaScript runs.
-- **The service worker** handles *top-level navigations*, so a block can show
-  the interstitial and explain itself instead of dropping the user on Chrome's
-  generic error page. `main_frame` is deliberately excluded from the DNR rules
-  so they cannot pre-empt it.
+- **declarativeNetRequest** stops the request before it is sent. Sub-resource
+  requests are blocked; top-level navigations are *redirected* to the block
+  page, so the user still gets an explanation.
+- **The service worker** handles only what rules cannot express — a heuristic
+  verdict on a host no list has seen — and records what was blocked so the
+  block page can describe it.
+
+That division is not a stylistic choice. `webNavigation.onBeforeNavigate` only
+*observes* a navigation; it cannot cancel one. Blocking from the service worker
+meant the page had already begun loading and running scripts by the time the
+redirect landed — a blocked site still managed to pop up its own dialogs, and
+for a malware host that means the attack had already run. Anything on a list is
+therefore stopped declaratively.
+
+A heuristic verdict is still reached in JavaScript and so still races, by
+nature: the host is unknown until it is examined. That is the cost of catching
+sites no list has yet seen, and it applies only to them.
 
 Chrome is the one place that carries the **full** catalog, phishing included:
 its budget is 30,000 static rules guaranteed, and `requestDomains` packs

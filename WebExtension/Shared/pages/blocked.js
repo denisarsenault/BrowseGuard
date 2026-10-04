@@ -7,6 +7,24 @@
 
 const params = new URLSearchParams(location.search);
 
+// A declarative redirect can only name a static page, so when the network
+// layer sent us here there is nothing in the query string to read. Ask the
+// service worker what it blocked in this tab instead.
+if (params.get("via") === "net" || !params.get("host")) {
+  browser.runtime.sendMessage({ action: "context" }).then((ctx) => {
+    if (!ctx?.ok) return;
+    const v = ctx.verdict ?? {};
+    const merged = new URLSearchParams({
+      host: v.host ?? "", decision: v.decision ?? "block",
+      category: v.category ?? "", categoryTitle: v.categoryTitle ?? "",
+      headline: v.headline ?? "Blocked by BrowseGuard",
+      explanation: v.explanation ?? "", source: v.source ?? "",
+      severity: String(v.severity ?? 0), url: ctx.url ?? "",
+    });
+    location.replace(`${location.pathname}?${merged.toString()}`);
+  }).catch(() => {});
+}
+
 const host = params.get("host") || "";
 const decision = params.get("decision") || "block";
 const category = params.get("category") || "";
