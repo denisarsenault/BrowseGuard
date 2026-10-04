@@ -366,6 +366,80 @@ struct StorageModelTests {
         #expect(settings.enabledCategories == ProtectionSettings.default.enabledCategories)
     }
 
+    @Test("Every category declares the schema it arrived in")
+    func everyCategoryIsVersioned() {
+        // The guard against the mistake this whole mechanism exists to stop:
+        // adding a ThreatCategory case and forgetting to record when it
+        // shipped, which silently makes it behave as though it always existed.
+        for category in ThreatCategory.allCases {
+            #expect(ProtectionSettings.categoryIntroducedIn[category] != nil,
+                    "\(category.rawValue) has no entry in categoryIntroducedIn")
+        }
+        for (category, version) in ProtectionSettings.categoryIntroducedIn {
+            #expect(version <= ProtectionSettings.currentSchemaVersion,
+                    "\(category.rawValue) claims schema \(version), newer than current")
+        }
+    }
+
+    @Test("A category introduced later defaults on for an existing install")
+    func newCategoryDefaultsOn() throws {
+        // Settings as actually found on disk: schema 1, written before
+        // `userBlocked` existed, with every category of that era switched on.
+        let v1 = Data("""
+        {"schemaVersion": 1, "isProtectionEnabled": true,
+         "enabledCategories": ["malware","scam","advertising","tracking",
+                               "clickbait","cryptojacking","pup"]}
+        """.utf8)
+        let settings = try JSONDecoder().decode(ProtectionSettings.self, from: v1)
+
+        #expect(settings.enabledCategories.contains(.userBlocked),
+                "a protection that did not exist when they last saved should arrive on")
+        #expect(settings.schemaVersion == ProtectionSettings.currentSchemaVersion,
+                "decoding should bring the file up to the current schema")
+    }
+
+    @Test("A category the user switched off stays off")
+    func deliberateChoiceIsKept() throws {
+        // Written at the current schema, so the absence of `advertising` is a
+        // decision rather than an omission. Re-enabling it would override the
+        // user, which is the failure mode versioning exists to prevent.
+        let current = ProtectionSettings.currentSchemaVersion
+        let json = Data("""
+        {"schemaVersion": \(current), "isProtectionEnabled": true,
+         "enabledCategories": ["malware","scam","tracking","clickbait",
+                               "cryptojacking","pup","userBlocked"]}
+        """.utf8)
+        let settings = try JSONDecoder().decode(ProtectionSettings.self, from: json)
+
+        #expect(!settings.enabledCategories.contains(.advertising))
+        #expect(!settings.isEnabled(.advertising), "a deliberate choice must survive decoding")
+    }
+
+    @Test("An unknown category does not take the rest of the settings with it")
+    func unknownCategoryIsSkipped() throws {
+        // A file written by a newer build, or one naming a category since
+        // removed. Throwing here would reset every other preference.
+        let json = Data("""
+        {"schemaVersion": 99, "isProtectionEnabled": false,
+         "enabledCategories": ["malware","somethingFromTheFuture"]}
+        """.utf8)
+        let settings = try JSONDecoder().decode(ProtectionSettings.self, from: json)
+
+        #expect(settings.enabledCategories == [.malware])
+        #expect(settings.isProtectionEnabled == false, "other settings survive intact")
+    }
+
+    @Test("The schema version round-trips through a save")
+    func schemaVersionPersists() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(ProtectionSettings.default)
+        #expect(String(decoding: data, as: UTF8.self).contains("schemaVersion"),
+                "the version has to be written or the next launch cannot migrate")
+        let round = try JSONDecoder().decode(ProtectionSettings.self, from: data)
+        #expect(round.schemaVersion == ProtectionSettings.currentSchemaVersion)
+    }
+
     @Test("A category added after settings were saved is not reported disabled")
     func nonToggleableCategorySurvivesOldSettings() throws {
         // Real settings written before `userBlocked` existed: the stored set
@@ -381,7 +455,10 @@ struct StorageModelTests {
         decoder.dateDecodingStrategy = .iso8601
         let settings = try decoder.decode(ProtectionSettings.self, from: old)
 
-        #expect(!settings.enabledCategories.contains(.userBlocked))
+        // Migration now repairs the stored set itself, so the category is
+        // present as well as enabled. `isEnabled` stays belt-and-braces for a
+        // non-toggleable category, in case a file arrives without a version.
+        #expect(settings.enabledCategories.contains(.userBlocked))
         #expect(settings.isEnabled(.userBlocked), "a category the user cannot switch off is always on")
         // The toggleable ones still answer from what was stored.
         #expect(settings.isEnabled(.malware))

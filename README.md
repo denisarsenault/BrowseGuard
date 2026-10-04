@@ -69,6 +69,26 @@ a web page cannot. `ProtectionEngine` is one immutable, `Sendable` struct and
 all three processes evaluate a host through it, so the verdict the app shows in
 its UI is exactly the one the extension enforces.
 
+### Settings migration
+
+`ProtectionSettings` carries a `schemaVersion`, and `categoryIntroducedIn`
+records the schema each `ThreatCategory` first shipped in. On decode, any
+category newer than the version a file was written with is switched **on**.
+
+This exists to tell two situations apart that otherwise look identical — an
+absent category because the user switched it off, and an absent category
+because it did not exist when they last saved. Without the version, every new
+protection would arrive silently disabled for existing users, which is the
+worst possible default for a security feature. A category absent from a file
+written at the *current* schema is a deliberate choice and is left alone.
+
+**When you add a case to `ThreatCategory`:** add it to `categoryIntroducedIn`
+and bump `currentSchemaVersion`. A test fails if you forget.
+
+Categories are decoded as raw strings and unknown ones are skipped, so a file
+written by a newer build — or one naming a category since removed — loses that
+entry rather than failing the whole read and resetting every other preference.
+
 ### Your own block list
 
 Separate from the threat feeds: a site you add here is blocked because you said
