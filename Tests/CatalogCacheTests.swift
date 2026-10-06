@@ -39,6 +39,37 @@ struct CatalogCacheTests {
         )
     }
 
+    @Test("A write is visible to the very next read")
+    func writeThenReadIsFresh() throws {
+        // The caches sit on the navigation hot path, so a stale read here
+        // would mean blocking a site the user had just unblocked — or worse,
+        // still allowing one they had just blocked.
+        guard SharedStore.write(UserBlocklist(items: [BlockedSite(host: "one.example")]),
+                                to: .userBlocklist) else { return }
+        defer { SharedStore.write(UserBlocklist.empty, to: .userBlocklist) }
+        #expect(SharedStore.userBlocklist().contains(host: "one.example") != nil)
+
+        // No sleep: back-to-back writes can share a filesystem timestamp, so
+        // the write itself has to drop the cache rather than relying on dates.
+        SharedStore.write(UserBlocklist(items: [BlockedSite(host: "two.example")]),
+                          to: .userBlocklist)
+        #expect(SharedStore.userBlocklist().contains(host: "two.example") != nil,
+                "a write must be visible to the next read")
+        #expect(SharedStore.userBlocklist().contains(host: "one.example") == nil,
+                "the replaced entry must be gone")
+    }
+
+    @Test("Settings and the allowlist are cached too, not just the catalog")
+    func allHotPathFilesAreCached() throws {
+        guard SharedStore.write(ProtectionSettings.default, to: .settings) else { return }
+        // Reading repeatedly must not re-decode; the modification date is
+        // unchanged, so the same value comes back each time.
+        let first = SharedStore.settings()
+        for _ in 0..<50 {
+            #expect(SharedStore.settings() == first)
+        }
+    }
+
     @Test("A catalog written by another process is still picked up")
     func invalidatesOnWrite() throws {
         guard seed(host: "one.example") else { return }

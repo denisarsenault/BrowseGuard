@@ -49,6 +49,7 @@ public enum SharedStore {
             // `.atomic` so a content blocker reading mid-write never sees a
             // truncated rule file and disables itself.
             try data.write(to: url, options: .atomic)
+            invalidateCache(for: file)
             return true
         } catch {
             log.error("Failed to write \(file.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -56,41 +57,60 @@ public enum SharedStore {
         }
     }
 
+    // Everything below is on the hot path. The web extension builds a
+    // `ProtectionEngine` for **every navigation**, and each one used to re-read
+    // and re-decode four files from disk. In Safari that cost is paid inside
+    // the window between the page starting to load and our verdict arriving —
+    // the window in which a blocked site can still run its own scripts — so
+    // shortening it is not merely a performance question.
+    //
+    // Each cache is invalidated by its file's modification date rather than by
+    // a notification, because the writer is usually a different process and
+    // the extension may not even be alive when the write happens.
+
     public static func settings() -> ProtectionSettings {
-        read(ProtectionSettings.self, from: .settings) ?? .default
+        settingsCache.value()
     }
 
     public static func allowlist() -> Allowlist {
-        read(Allowlist.self, from: .allowlist) ?? .empty
+        allowlistCache.value()
     }
 
     public static func userBlocklist() -> UserBlocklist {
-        read(UserBlocklist.self, from: .userBlocklist) ?? .empty
+        userBlocklistCache.value()
     }
 
-    /// The decoded catalog, cached for the lifetime of the process.
-    ///
-    /// This is on the hot path: the web extension builds a `ProtectionEngine`
-    /// for **every navigation**, and before this cache each page load re-read
-    /// the 2.4 MB catalog file and rebuilt a 42,000-entry index — roughly 20 MB
-    /// of allocation per page, in an extension process with a far smaller
-    /// memory allowance than the app.
-    ///
-    /// Invalidated by the file's modification date rather than a notification,
-    /// because the writer is a different process and the extension may not be
-    /// alive when the write happens.
     public static func catalog() -> BlocklistCatalog {
         catalogCache.value()
     }
 
-    private static let catalogCache = CatalogCache()
+    private static let settingsCache = FileCache(.settings) {
+        read(ProtectionSettings.self, from: .settings) ?? .default
+    }
+    private static let allowlistCache = FileCache(.allowlist) {
+        read(Allowlist.self, from: .allowlist) ?? .empty
+    }
+    private static let userBlocklistCache = FileCache(.userBlocklist) {
+        read(UserBlocklist.self, from: .userBlocklist) ?? .empty
+    }
+    private static let catalogCache = FileCache(.catalog) {
+        decodeCatalog()
+    }
 
-    private final class CatalogCache: @unchecked Sendable {
+    /// A decoded file, held for as long as the file on disk is unchanged.
+    private final class FileCache<Value: Sendable>: @unchecked Sendable {
+        private let file: AppGroup.File
+        private let load: @Sendable () -> Value
         private let lock = NSLock()
-        private var cached: BlocklistCatalog?
+        private var cached: Value?
         private var stamp: Date?
 
-        func value() -> BlocklistCatalog {
+        init(_ file: AppGroup.File, load: @escaping @Sendable () -> Value) {
+            self.file = file
+            self.load = load
+        }
+
+        func value() -> Value {
             let modified = modificationDate()
 
             lock.lock()
@@ -103,7 +123,7 @@ public enum SharedStore {
             // Decoded outside the lock: it is the slow part, and two threads
             // racing to decode the same file is wasteful but harmless, whereas
             // holding the lock across it would serialize every navigation.
-            let fresh = SharedStore.decodeCatalog()
+            let fresh = load()
 
             lock.lock()
             cached = fresh
@@ -112,10 +132,32 @@ public enum SharedStore {
             return fresh
         }
 
+        /// Drops the cached copy. Called right after this process writes the
+        /// file, so a read that follows a write never sees the old value even
+        /// if the two land within the same filesystem timestamp.
+        func invalidate() {
+            lock.lock()
+            cached = nil
+            stamp = nil
+            lock.unlock()
+        }
+
         private func modificationDate() -> Date? {
-            guard let url = AppGroup.File.catalog.url else { return nil }
+            guard let url = file.url else { return nil }
             return try? url.resourceValues(forKeys: [.contentModificationDateKey])
                 .contentModificationDate
+        }
+    }
+
+    /// Drops whichever cache covers `file`. Writes go through here so a caller
+    /// that writes and then immediately reads cannot observe stale data.
+    static func invalidateCache(for file: AppGroup.File) {
+        switch file {
+        case .settings: settingsCache.invalidate()
+        case .allowlist: allowlistCache.invalidate()
+        case .userBlocklist: userBlocklistCache.invalidate()
+        case .catalog: catalogCache.invalidate()
+        case .events, .compiledRules: break   // not cached
         }
     }
 
