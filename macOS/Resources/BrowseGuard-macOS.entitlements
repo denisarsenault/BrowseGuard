@@ -2,11 +2,35 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Required, not optional. The Mac App Store refuses an unsandboxed app
+	     outright, and Safari refuses to associate a content blocker with an
+	     unsandboxed containing app: SFContentBlockerManager answers
+	     SFErrorNoExtensionFound (code 1) for an identifier that pluginkit can
+	     see and Safari lists as enabled. The symptom is the app reporting the
+	     blocker off while Safari's own settings show it on, and the extension
+	     process launching but never being asked for its rules.
+
+	     The two macOS extensions have carried this since they were written;
+	     only the app was missing it. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Outbound only, for the blocklist feed in BlocklistUpdater. Without it
+	     the sandbox above would silently turn every feed refresh into a
+	     connection failure. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
 	<string>$(TeamIdentifierPrefix)com.mybrightzone.BrowseGuard</string>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>$(TeamIdentifierPrefix)group.com.mybrightzone.BrowseGuard</string>
 	</array>
+	<!-- Lets the user authorize moving a stray old copy of BrowseGuard to the
+	     Trash from the duplicate-install banner: the app can only touch a bundle
+	     the user picks in the open panel, which grants a scope for this key. The
+	     sandbox still forbids silent deletion, which is why removal is always a
+	     confirmed, user-selected action. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
 </dict>
 </plist>

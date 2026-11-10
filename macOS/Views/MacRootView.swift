@@ -3,6 +3,9 @@ import SwiftUI
 struct MacRootView: View {
     @Environment(ProtectionCoordinator.self) private var coordinator
     @State private var selection: Section? = .overview
+    @State private var cleanupPromptReport: DuplicateInstallReport?
+
+    private static let promptedVersionKey = "duplicateCleanupPromptedVersion"
 
     enum Section: String, Hashable, CaseIterable, Identifiable {
         case overview, activity, sites, categories
@@ -44,15 +47,56 @@ struct MacRootView: View {
             }
         }
         .navigationTitle("BrowseGuard")
+        .task { evaluateCleanupPrompt() }
+        .alert("An old copy of BrowseGuard is still installed",
+               isPresented: Binding(get: { cleanupPromptReport != nil },
+                                    set: { if !$0 { cleanupPromptReport = nil } }),
+               presenting: cleanupPromptReport) { _ in
+            Button("Review") { selection = .overview; cleanupPromptReport = nil }
+            Button("Later", role: .cancel) { cleanupPromptReport = nil }
+        } message: { report in
+            let n = report.otherCopies.count
+            Text("\(n == 1 ? "Another copy is" : "\(n) other copies are") installed. Safari can load its extension and serve stale rules. Review it in Overview to move it to the Trash.")
+        }
+    }
+
+    /// Show the cleanup prompt at most once per app version, and only when a
+    /// second copy is actually present (the moment an update makes the old one
+    /// stale is exactly when this fires).
+    private func evaluateCleanupPrompt() {
+        let report = DuplicateInstallScanner.scan()
+        let defaults = AppGroup.defaults
+        guard DuplicateInstallPrompt.shouldPrompt(
+            hasDuplicates: report.hasDuplicates,
+            currentVersion: Self.currentVersion,
+            lastPromptedVersion: defaults.string(forKey: Self.promptedVersionKey)
+        ) else { return }
+
+        cleanupPromptReport = report
+        defaults.set(Self.currentVersion, forKey: Self.promptedVersionKey)
+    }
+
+    private static var currentVersion: String {
+        let info = Bundle.main.infoDictionary
+        let short = (info?["CFBundleShortVersionString"] as? String) ?? "?"
+        let build = (info?["CFBundleVersion"] as? String) ?? "?"
+        return "\(short) (\(build))"
     }
 }
 
 struct MacOverviewView: View {
     @Environment(ProtectionCoordinator.self) private var coordinator
+    @State private var installReport: DuplicateInstallReport?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if let report = installReport, report.hasDuplicates {
+                    DuplicateInstallBanner(report: report) {
+                        installReport = DuplicateInstallScanner.scan()
+                    }
+                }
+
                 ProtectionStatusCard(
                     isEnabled: coordinator.settings.isProtectionEnabled,
                     isFullyArmed: coordinator.isFullyArmed,
@@ -107,6 +151,7 @@ struct MacOverviewView: View {
         }
         .navigationTitle("Overview")
         .task { await coordinator.refreshExtensionState() }
+        .task { installReport = DuplicateInstallScanner.scan() }
     }
 }
 
