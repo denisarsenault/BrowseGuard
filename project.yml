@@ -42,6 +42,10 @@ settings:
     # offer rather than linking somewhere that does not exist yet. Chrome has
     # no local installer on macOS, so the listing is the only way in.
     BROWSEGUARD_CHROME_URL: ""
+    # Required by App Review for any app that sells a subscription. Shown as
+    # links on the paywall, and left out when empty rather than linking nowhere.
+    BROWSEGUARD_TERMS_URL: ""
+    BROWSEGUARD_PRIVACY_URL: ""
 
 fileGroups:
   - README.md
@@ -57,8 +61,12 @@ targetTemplates:
   BlockerSources:
     sources:
       - path: Shared/Core/AppGroup.swift
+      # Read directly so a lapsed subscription can be enforced without the app running.
+      - path: Shared/Entitlement/EntitlementRecord.swift
       - path: ContentBlocker/ContentBlockerRequestHandler.swift
       - path: ContentBlocker/Resources/blockerList.json
+        buildPhase: resources
+      - path: ContentBlocker/Resources/noRules.json
         buildPhase: resources
 
   # Sources every other target needs: the engine, the stores, nothing UI-shaped.
@@ -67,6 +75,7 @@ targetTemplates:
       - path: Shared/Core
         excludes: ["ExtensionBridge.swift"]
       - path: Shared/Storage
+      - path: Shared/Entitlement/EntitlementRecord.swift
 
   # Everything the three apps share on top of the engine.
   AppSources:
@@ -78,6 +87,7 @@ targetTemplates:
       # otherwise terminate the app during an onboarding status check.
       - path: Shared/Support/ExceptionBarrier
       - path: Shared/Sync
+      - path: Shared/Entitlement/SubscriptionStore.swift
       - path: Shared/Updates
       - path: Shared/ViewModels
       - path: Shared/Views
@@ -112,6 +122,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        BGTermsURL: $(BROWSEGUARD_TERMS_URL)
+        BGPrivacyURL: $(BROWSEGUARD_PRIVACY_URL)
         BGBlocklistFeedURL: $(BROWSEGUARD_FEED_URL)
         LSApplicationCategoryType: public.app-category.utilities
         UILaunchScreen: {}
@@ -162,6 +174,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        BGTermsURL: $(BROWSEGUARD_TERMS_URL)
+        BGPrivacyURL: $(BROWSEGUARD_PRIVACY_URL)
         BGBlocklistFeedURL: $(BROWSEGUARD_FEED_URL)
         BGChromeExtensionURL: $(BROWSEGUARD_CHROME_URL)
         LSApplicationCategoryType: public.app-category.utilities
@@ -209,6 +223,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         BGAppGroupIdentifier: $(BROWSEGUARD_APP_GROUP)
+        BGTermsURL: $(BROWSEGUARD_TERMS_URL)
+        BGPrivacyURL: $(BROWSEGUARD_PRIVACY_URL)
         BGBlocklistFeedURL: $(BROWSEGUARD_FEED_URL)
         LSApplicationCategoryType: public.app-category.utilities
         ITSAppUsesNonExemptEncryption: false
@@ -427,6 +443,8 @@ targets:
 
 schemes:
 
+  # The StoreKit configuration lets Run purchase and lapse subscriptions locally,
+  # with no App Store Connect account involved. Release builds use the real store.
   BrowseGuard-iOS:
     build:
       targets:
@@ -436,6 +454,7 @@ schemes:
       targets: [BrowseGuardTests]
     run:
       config: Debug
+      storeKitConfiguration: StoreKit/BrowseGuard.storekit
 
   BrowseGuard-macOS:
     build:
@@ -446,6 +465,7 @@ schemes:
       targets: [BrowseGuardTests]
     run:
       config: Debug
+      storeKitConfiguration: StoreKit/BrowseGuard.storekit
 
   BrowseGuard-tvOS:
     build:
@@ -453,3 +473,4 @@ schemes:
         BrowseGuard-tvOS: all
     run:
       config: Debug
+      storeKitConfiguration: StoreKit/BrowseGuard.storekit

@@ -64,6 +64,17 @@ final class ContentBlockerRequestHandler: NSObject, NSExtensionRequestHandling {
     private func ruleFileURL() -> URL? {
         let bundled = Bundle.main.url(forResource: "blockerList", withExtension: "json")
 
+        // A lapsed subscription is enforced here as well as in the app. The rule
+        // file on disk is the real one until the app next recompiles, and the app
+        // may be closed when the subscription ends, so without this check Safari
+        // would keep filtering after the user stopped paying.
+        guard let entitlementURL = AppGroup.File.entitlement.url,
+              EntitlementRecord.load(from: entitlementURL)?.isActive() == true
+        else {
+            log.notice("No active subscription; serving the no-op rule set")
+            return Bundle.main.url(forResource: "noRules", withExtension: "json")
+        }
+
         guard let shared = AppGroup.File.compiledRules.url,
               let size = try? shared.resourceValues(forKeys: [.fileSizeKey]).fileSize,
               size > 2

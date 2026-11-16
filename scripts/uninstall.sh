@@ -43,6 +43,7 @@ BUNDLE_IDS=(
   com.mybrightzone.BrowseGuard.macExtension
 )
 APP_GROUP_SUFFIX="group.com.mybrightzone.BrowseGuard"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister"
 
 targets=()
 add() { [[ -n "$1" && -e "$1" ]] && targets+=("$1") }
@@ -107,6 +108,10 @@ print "  editing Safari's preferences to force that would risk your others."
 print "  iCloud. If sync was on, your settings and lists are mirrored to the"
 print "  key-value store and will return if you reinstall. Turn sync off in the"
 print "  app first if you want them gone for good."
+print "  Your subscription. Removing the app does not cancel it. Cancel in"
+print "  Settings > Apple Account > Subscriptions, or in the App Store on a Mac."
+print "  The Chrome extension. It was installed from the Chrome Web Store, so"
+print "  remove it at chrome://extensions. This script cannot do that for you."
 
 # --- Act --------------------------------------------------------------------
 print
@@ -142,6 +147,24 @@ remove() {
     fi
   fi
 }
+
+# Disable the Safari extensions and drop their registrations before the bundle
+# goes. Safari otherwise keeps listing them until it restarts, and a removed
+# bundle can linger in PlugInKit's records. These are the macOS identifiers plus
+# the iOS ones, which a Mac never registers but cost nothing to ask about.
+for id in $BUNDLE_IDS; do
+  case "$id" in
+    *ContentBlocker*|*Extension*) pluginkit -e ignore -i "$id" >/dev/null 2>&1 ;;
+  esac
+done
+for t in $targets; do
+  if [[ "$t" == *.app ]]; then
+    for appex in "$t"/Contents/PlugIns/*.appex(N); do
+      pluginkit -r "$appex" >/dev/null 2>&1
+    done
+    "$LSREGISTER" -u "$t" >/dev/null 2>&1
+  fi
+done
 
 failed=0
 for t in $targets; do

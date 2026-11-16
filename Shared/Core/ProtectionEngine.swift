@@ -31,13 +31,29 @@ public struct ProtectionEngine: Sendable {
 
     /// Builds an engine from whatever is currently in the App Group.
     /// This is the entry point the extensions use.
-    public static func current() -> ProtectionEngine {
+    public static func current(at now: Date = .now) -> ProtectionEngine {
         ProtectionEngine(
-            settings: SharedStore.settings(),
+            settings: effective(SharedStore.settings(), entitlement: SharedStore.entitlement(), at: now),
             catalog: SharedStore.catalog(),
             allowlist: SharedStore.allowlist(),
             userBlocklist: SharedStore.userBlocklist()
         )
+    }
+
+    /// The settings that apply right now.
+    ///
+    /// Without an active subscription, protection is off in this copy, which is
+    /// what the engine and the rule compiler read. The saved settings are left
+    /// alone, so renewing restores exactly what the user had chosen.
+    public static func effective(
+        _ settings: ProtectionSettings,
+        entitlement: EntitlementRecord,
+        at now: Date = .now
+    ) -> ProtectionSettings {
+        guard !entitlement.isActive(at: now) else { return settings }
+        var lapsed = settings
+        lapsed.isProtectionEnabled = false
+        return lapsed
     }
 
     public func evaluate(url: URL, at date: Date = .now) -> Verdict {

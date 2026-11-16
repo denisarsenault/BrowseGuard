@@ -22,6 +22,13 @@ public final class ProtectionCoordinator {
     public private(set) var events: [BlockEvent]
     public private(set) var catalog: BlocklistCatalog
 
+    /// Owns the purchase flow. Read `isEntitled` rather than the record itself.
+    public let subscription: SubscriptionStore
+
+    /// Whether the app may run at all. Without an active subscription the
+    /// window shows the paywall and nothing filters.
+    public var isEntitled: Bool { subscription.isActive }
+
     /// `nil` until the first check completes, or on platforms that cannot tell.
     public private(set) var contentBlockerEnabled: Bool?
     public private(set) var webExtensionEnabled: Bool?
@@ -56,6 +63,15 @@ public final class ProtectionCoordinator {
         self.userBlocklist = SharedStore.userBlocklist()
         self.events = EventLogStore.load()
         self.catalog = updater.resolvedCatalog()
+        self.subscription = SubscriptionStore()
+        subscription.onChange = { [weak self] _ in self?.entitlementChanged() }
+    }
+
+    /// The subscription started, lapsed or renewed. The rules change with it:
+    /// a lapse must stop filtering, and a renewal must start it again.
+    private func entitlementChanged() {
+        isApplyingRules = true
+        ruleApplier.schedule { [weak self] in await self?.applyRules() }
     }
 
     public var summary: ActivitySummary {
@@ -64,17 +80,18 @@ public final class ProtectionCoordinator {
 
     public var engine: ProtectionEngine {
         ProtectionEngine(
-            settings: settings,
+            settings: ProtectionEngine.effective(settings, entitlement: subscription.record),
             catalog: catalog,
             allowlist: allowlist,
             userBlocklist: userBlocklist
         )
     }
 
-    /// Protection is only really on when the user has also switched the Safari
-    /// extension on — the toggle in our app cannot do that for them.
+    /// Protection is only really on when there is a subscription, the user has
+    /// switched protection on, and the Safari extension is enabled. The toggle
+    /// in our app cannot do the last of those for them.
     public var isFullyArmed: Bool {
-        settings.isProtectionEnabled && (contentBlockerEnabled ?? true)
+        isEntitled && settings.isProtectionEnabled && (contentBlockerEnabled ?? true)
     }
 
     // MARK: - Lifecycle
@@ -86,6 +103,9 @@ public final class ProtectionCoordinator {
             \(self.catalog.entryCount) hosts, \
             app group \(AppGroup.identifier, privacy: .public)
             """)
+        // Starts StoreKit. Its first refresh may recompile the rules, which is
+        // the point: a lapse found at launch takes effect before anything else.
+        subscription.start()
         // Re-read the lists the extensions can also write before persisting
         // anything. This object was constructed when the window opened, which
         // may have been hours ago; in the meantime the web extension may have
@@ -315,7 +335,7 @@ public final class ProtectionCoordinator {
 
         compiledRuleCount = await ExtensionBridge.compileRules(
             catalog: catalog,
-            settings: settings,
+            settings: ProtectionEngine.effective(settings, entitlement: subscription.record),
             allowlist: allowlist,
             userBlocklist: userBlocklist
         )

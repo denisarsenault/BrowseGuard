@@ -7,7 +7,7 @@ struct BrowseGuardApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TVRootView()
+            SubscriptionGate { TVRootView() }
                 .environment(coordinator)
                 .task { await coordinator.bootstrap() }
         }

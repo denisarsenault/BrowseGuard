@@ -134,6 +134,8 @@ public enum AppGroup {
         case userBlocklist = "userBlocklist.json"
         case events = "events.json"
         case catalog = "catalog.json"
+        /// The App Store's answer about the subscription. See `EntitlementRecord`.
+        case entitlement = "entitlement.json"
         /// The compiled Safari content-blocker rules the extensions serve.
         case compiledRules = "blockerList.json"
 

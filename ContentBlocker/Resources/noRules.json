@@ -1,0 +1,6 @@
+[
+  {
+    "trigger": { "url-filter": "^https?://browseguard\\.invalid/never-matches" },
+    "action": { "type": "block" }
+  }
+]

@@ -84,8 +84,15 @@ public enum SharedStore {
         catalogCache.value()
     }
 
+    public static func entitlement() -> EntitlementRecord {
+        entitlementCache.value()
+    }
+
     private static let settingsCache = FileCache(.settings) {
         read(ProtectionSettings.self, from: .settings) ?? .default
+    }
+    private static let entitlementCache = FileCache(.entitlement) {
+        read(EntitlementRecord.self, from: .entitlement) ?? .unsubscribed
     }
     private static let allowlistCache = FileCache(.allowlist) {
         read(Allowlist.self, from: .allowlist) ?? .empty
@@ -157,6 +164,7 @@ public enum SharedStore {
         case .allowlist: allowlistCache.invalidate()
         case .userBlocklist: userBlocklistCache.invalidate()
         case .catalog: catalogCache.invalidate()
+        case .entitlement: entitlementCache.invalidate()
         case .events, .compiledRules: break   // not cached
         }
     }

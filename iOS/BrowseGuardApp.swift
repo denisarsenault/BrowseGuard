@@ -8,7 +8,7 @@ struct BrowseGuardApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
+            SubscriptionGate { RootTabView() }
                 .environment(coordinator)
                 .task { await coordinator.bootstrap() }
         }
@@ -18,6 +18,8 @@ struct BrowseGuardApp: App {
             // the user may have flipped the Safari switch in Settings.
             coordinator.reloadEvents()
             Task { await coordinator.refreshExtensionState() }
+            // A renewal or lapse may have happened while we were in the background.
+            Task { await coordinator.subscription.refresh() }
         }
     }
 }
