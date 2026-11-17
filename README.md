@@ -7,7 +7,53 @@ scams and phishing, ads, trackers, clickbait, in-browser cryptominers, and
 unwanted-software portals, and it catches brand-new phishing domains with
 heuristics rather than waiting for a blocklist to catch up.
 
-Everything runs on device. Nothing about your browsing leaves the machine.
+Everything runs on device. Nothing about your browsing leaves the machine. The
+only network traffic is blocklist downloads, and StoreKit's subscription checks
+with Apple.
+
+BrowseGuard is a paid app. Access is an auto-renewing subscription; see
+[Subscription](#subscription).
+
+---
+
+## Features
+
+**Protection**
+
+- Seven switchable categories: malware, scams and phishing, ads, trackers,
+  clickbait, cryptojacking, and unwanted programs.
+- Your own **block list**, separate from the threat feeds. Blocks say so
+  plainly rather than claiming the site is dangerous.
+- An **allowlist**. Sites you allow stay allowed, and a block on the same site
+  removes the allowance.
+- **Heuristic phishing detection** at three sensitivities: Relaxed, Balanced
+  and Strict. Each block page lists the signals that fired.
+- **Continue anyway** on a block page. It lets you past for one hour by default,
+  recorded as a temporary allowlist entry that lapses on its own. The allowlist
+  editor shows when it runs out.
+- **Blocklist updates**, automatic or on demand, from the macOS menu bar
+  (Check for Blocklist Updates).
+
+**Tools**
+
+- **Check a site.** Paste a link to get BrowseGuard's verdict without loading the
+  page (iOS and macOS).
+- **Activity log.** Records hosts only, never full URLs, query strings or page
+  titles. It can be turned off.
+- **iCloud sync** of settings, the allowlist and the block list, behind a toggle.
+- **Chrome popup.** Shows the verdict for the current site, and lets you block or
+  always allow it.
+- **Duplicate-install detection** on macOS, with a one-click path to move stray
+  copies to the Trash. See [One copy only](#one-copy-only).
+
+**Where each lives**
+
+- **iOS and iPadOS:** Protection, Activity, Sites and Settings tabs.
+- **macOS:** a main window (Overview, Activity, Sites, What to Block) and a
+  Settings window with heuristic sensitivity, the activity log, iCloud sync, the
+  block page, automatic updates and the blocklist catalog.
+- **tvOS:** Overview, Activity, What to Block, Allowed Sites and Blocked Sites,
+  mirroring the devices you use BrowseGuard on.
 
 ---
 
@@ -36,8 +82,9 @@ depends on it.
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ App Group container  group.com.mybrightzone.BrowseGuard      │
-│   settings.json · allowlist.json · events.json               │
-│   catalog.json  · blockerList.json (compiled Safari rules)   │
+│   settings.json · allowlist.json · userBlocklist.json        │
+│   entitlement.json · events.json · catalog.json             │
+│   blockerList.json (compiled Safari rules)                  │
 └───────▲──────────────────▲──────────────────────▲────────────┘
         │ read/write       │ read                 │ read + coordinated append
 ┌───────┴────────┐ ┌───────┴────────┐ ┌───────────┴─────────────┐
@@ -135,6 +182,152 @@ plain language — no "trust us, it's bad".
 
 ---
 
+## Subscription
+
+Access is sold as an auto-renewing StoreKit 2 subscription, in two plans inside
+one subscription group. A subscriber can move between plans without being billed
+twice.
+
+| Product ID | Period | Price in the local StoreKit file |
+| --- | --- | --- |
+| `com.mybrightzone.BrowseGuard.monthly` | 1 month | $2.99 (placeholder) |
+| `com.mybrightzone.BrowseGuard.annual` | 1 year | $19.99 (placeholder) |
+
+The prices in `StoreKit/BrowseGuard.storekit` are placeholders for local testing.
+Real prices are set in App Store Connect. The product IDs there must match these
+exactly. A mismatch shows up as "no products" on the paywall.
+
+### What happens without a subscription
+
+Until StoreKit reports an active subscription, the app shows a paywall in place of
+its interface, through `SubscriptionGate`. On macOS this covers both the main
+window and the Settings window. The paywall offers both plans and a Restore
+Purchases button, with the renewal and cancellation terms and links to Terms,
+Privacy and Manage Subscriptions. The Manage Subscriptions link is not on tvOS.
+
+Lapse is enforced in the protection path, not just in the UI:
+
+- **Engine.** `ProtectionEngine.effective(...)` turns protection off whenever the
+  entitlement is not active. The Safari web extension's verdicts go through the
+  engine, so they stop too.
+- **Content blocker.** When the entitlement is inactive,
+  `ContentBlockerRequestHandler` serves `noRules.json`, a rule list that blocks
+  nothing. It makes that decision by reading the date from the App Group itself,
+  so it works while the app is closed.
+- **Your settings are kept.** A lapse does not erase your choices. Resubscribing
+  puts protection back the way you left it.
+
+### How the entitlement is stored
+
+`SubscriptionStore` asks StoreKit for the newest verified, unrevoked transaction
+in the group. It writes an `EntitlementRecord` (product, expiry, grace end) to
+`entitlement.json` in the App Group. The extensions cannot call StoreKit, so they
+read that file.
+
+Readers compare its dates with the clock. They do not trust a stored "active"
+flag. A subscription that lapses while the app is closed therefore stops working
+without anything having to run to notice.
+
+The app refreshes the record at launch, whenever it becomes active, and when the
+paid period or the grace window ends. If Apple is retrying a failed renewal, the
+grace period keeps protection on until it runs out.
+
+### Why StoreKit and not a license key
+
+App Store Review Guideline 3.1.1 requires digital features to be sold through
+in-app purchase. The App Store is the authority, and the record is only a cache of
+what StoreKit reported.
+
+Known limit: `entitlement.json` is an ordinary file in the App Group container, so
+anyone who can edit that container can change it. This is accepted for v1.
+Verifying the signed transaction inside the extension would close the gap if it
+matters later.
+
+### Not covered by the subscription
+
+The Chrome extension is **not** gated. It carries its own lists and nothing syncs
+from the Apple apps, so the subscription does not reach it. Whether it belongs in
+the paid offer has not been decided.
+
+### Before release
+
+1. Create the two products in App Store Connect with the IDs above, in one
+   subscription group.
+2. Set `BROWSEGUARD_TERMS_URL` and `BROWSEGUARD_PRIVACY_URL` in `project.yml`. Left
+   empty, the paywall's links are missing.
+3. Test in Xcode with `StoreKit/BrowseGuard.storekit`, then in the sandbox: a
+   purchase, a renewal, Restore Purchases, and a lapse.
+
+---
+
+## One copy only
+
+BrowseGuard is meant to run as a single copy, and the code enforces that in two
+places.
+
+**Inside the app (macOS).** A second launch hands focus to the copy already
+running and quits. Two copies would both write the App Group state, and the stale
+one would overwrite the other's settings.
+
+**Duplicate detection (macOS).** Safari registers a Safari extension for every
+copy of the app that Launch Services knows about. So an old build in
+`~/Downloads`, a duplicate in `~/Applications`, or a drag-installed update beside
+the original shows up as two extensions in Safari, and the stale one can serve old
+rules. The app lists the copies it finds and shows a banner when there is more
+than one:
+
+- **Reveal** shows the copy in Finder.
+- **Move to Trash** opens a panel pointed at that copy. Selecting it is the
+  confirmation, which the sandbox requires before the app may touch the bundle.
+- The prompt appears once per app version. Someone who keeps both copies is not
+  nagged on every launch, but an update, which is when an old copy goes stale,
+  gets one reminder.
+
+**Checking from the terminal.** `scripts/single-copy.sh` reports the installed
+copies, the running processes and the Safari registrations. It passes only when
+there is one copy, in `/Applications`, one process, and both extensions registered
+from that copy. Xcode registers every build product with Launch Services, so each
+build can add another copy. Run the script after building.
+
+```bash
+./scripts/single-copy.sh          # report only
+./scripts/single-copy.sh --fix    # quit extra copies, unregister them, move them to the Trash
+```
+
+`--fix` reports failure if a copy could not be trashed. Allow your terminal to
+control Finder (System Settings › Privacy & Security › Automation), or move the
+copy by hand. Afterwards, quit and reopen Safari and run the script again.
+
+---
+
+## Uninstalling
+
+`scripts/uninstall.sh` removes BrowseGuard, its Safari extensions and their data.
+Run with no arguments, it only reports what it would remove.
+
+```bash
+./scripts/uninstall.sh                 # report only
+./scripts/uninstall.sh --yes           # move everything to the Trash
+./scripts/uninstall.sh --yes --delete  # remove permanently
+```
+
+It quits BrowseGuard, turns off and unregisters the Safari extensions, then removes
+the app, the per-app containers, preferences, caches, and the App Group container.
+Trashing goes through Finder, so the terminal needs permission to control Finder
+(see above), or use `--delete`.
+
+It deliberately leaves these alone:
+
+- **Safari's own settings.** The extensions disappear with the app. Editing Safari's
+  preferences to force that would risk your other extensions.
+- **Your subscription.** Removing the app does not cancel it. Cancel in Settings ›
+  Apple Account › Subscriptions, or in the App Store on a Mac.
+- **The Chrome extension.** Remove it at `chrome://extensions`.
+- **iCloud data.** If sync was on, your settings and lists come back on reinstall.
+  Turn sync off in the app first to remove them for good.
+
+---
+
 ## Getting it building
 
 ```bash
@@ -154,8 +347,8 @@ in Xcode and expect them to survive.
    Capabilities tab.
 
 2. **Register the App Group** `group.com.mybrightzone.BrowseGuard` in the
-   Developer portal, and enable the App Groups capability on all five
-   iOS/macOS targets.
+   Developer portal, and enable the App Groups capability on every app and
+   extension target.
 
    On macOS the App Store requires the Team ID prefix, so the macOS
    entitlements use `$(TeamIdentifierPrefix)group.com.mybrightzone.BrowseGuard`
@@ -174,6 +367,15 @@ in Xcode and expect them to survive.
 5. **tvOS brand assets.** The tvOS target ships without an app icon so it
    builds out of the box. Add the layered icon stack and top-shelf image in
    Xcode's asset editor before submitting.
+
+6. **StoreKit for local testing.** The app schemes run with
+   `StoreKit/BrowseGuard.storekit`, so the paywall works in Xcode without App Store
+   Connect. Create the same products in App Store Connect before release (see
+   [Subscription](#subscription)).
+
+7. **Store and legal links.** Set `BROWSEGUARD_TERMS_URL` and
+   `BROWSEGUARD_PRIVACY_URL` in `project.yml`. Set `BROWSEGUARD_CHROME_URL` once the
+   Chrome extension is listed in the Web Store.
 
 ### What you'll see before it's signed
 
@@ -530,12 +732,23 @@ xcodebuild test -project BrowseGuard.xcodeproj -scheme BrowseGuard-macOS -destin
 ```
 
 The test target compiles the engine sources directly — no host app, no Safari —
-so matching, heuristics, and rule compilation are exercised headlessly. The
-suite covers host canonicalization, suffix matching (including the
-`notdoubleclick.net` near-miss), heuristic true and false positives, the
-allowlist beating a malware listing, bypass expiry, rule-limit truncation, and
-that a compiled `url-filter` anchors at the host rather than matching a query
-string.
+so the logic is exercised headlessly.
+
+| Suite | Tests | Covers |
+| --- | --- | --- |
+| `EngineTests` | 61 | Host canonicalization, suffix matching (including the `notdoubleclick.net` near-miss), heuristic true and false positives, the allowlist beating a malware listing, bypass expiry, rule-limit truncation, block-over-allow ordering, and that a compiled `url-filter` anchors at the host rather than matching a query string |
+| `EntitlementTests` | 9 | Expiry and grace boundaries, grace needing a product, a lapse keeping the saved choice, the App Group round trip, the blocker reading the same file, the product list |
+| `DuplicateInstallTests` | 7 | Duplicate detection, which copy is running, the prompt once per version |
+| `CatalogCacheTests` | 4 | The catalog is decoded once and reloaded when the file changes |
+| `HeuristicVectorTests` | 1 | The Swift scanner agrees with `Tests/heuristic-vectors.json` |
+
+Other checks that run outside Xcode:
+
+```bash
+python3 scripts/test_build_feeds.py     # 22 tests: the feed builder, no network
+node scripts/test_heuristics.mjs        # JavaScript heuristics against the same vectors
+./scripts/single-copy.sh                # one installed, running and registered copy
+```
 
 ---
 
@@ -552,6 +765,11 @@ string.
   event log stays on device; `NSUbiquitousKeyValueStore` caps at 1 MB and a
   browsing log does not belong in the cloud regardless.
 - `ITSAppUsesNonExemptEncryption` is declared `false` on all three apps.
+- Access is sold through StoreKit 2 auto-renewing subscriptions, not license keys
+  (Guideline 3.1.1). See [Subscription](#subscription).
+- The apps show a paywall until a subscription is active. Say in the App Review
+  notes how a reviewer gets past it: a sandbox purchase, or the Restore Purchases
+  button on a sandbox account.
 
 ---
 
@@ -559,19 +777,30 @@ string.
 
 ```
 Shared/
-  Core/       ThreatCategory, Blocklist, DomainMatcher, HeuristicScanner,
-              Verdict, ProtectionEngine, ContentRuleCompiler, AppGroup,
-              ExtensionBridge
-  Storage/    ProtectionSettings, Allowlist, BlockEvent, SharedStore,
-              AllowlistStore, EventLogStore
-  Sync/       CloudSync
-  Updates/    BlocklistUpdater
-  ViewModels/ ProtectionCoordinator
-  Views/      shared SwiftUI leaves used by all three platforms
-  Resources/  bundled baseline blocklists
-iOS/ macOS/ tvOS/     per-platform app targets
-ContentBlocker/       request handler, shared by both platform extensions
-WebExtension/         native handler + manifest, background.js, content.js,
-                      block page, popup
-Tests/                engine tests (Swift Testing)
+  Core/        ThreatCategory, Blocklist, URLNormalizer, HeuristicScanner,
+               Verdict, ProtectionEngine, ContentRuleCompiler, AppGroup,
+               ExtensionBridge, CoalescingRunner, ConfiguredURL,
+               DuplicateInstall, DuplicateInstallPrompt
+  Entitlement/ EntitlementRecord (read by every process),
+               SubscriptionStore (app only, talks to StoreKit)
+  Storage/     ProtectionSettings, Allowlist, UserBlocklist, BlockEvent,
+               SharedStore, AllowlistStore, UserBlocklistStore, EventLogStore
+  Sync/        CloudSync
+  Updates/     BlocklistUpdater
+  ViewModels/  ProtectionCoordinator
+  Views/       shared SwiftUI: PaywallView, SiteCheckerView, ActivityList,
+               AllowlistEditor, BlockedSitesEditor, ChromeExtensionCard, Theme
+  Support/     Objective-C exception barrier (BGExceptionBarrier)
+  Resources/   bundled baseline blocklists
+iOS/ macOS/ tvOS/      per-platform app targets; each has its own Views/
+                       (macOS also has the duplicate-install scanner and remover)
+ContentBlocker/        request handler and rule-list resources, shared by both
+                       platform extensions
+WebExtension/          native handler, manifests, background.js, content.js,
+                       block page, popup
+StoreKit/              BrowseGuard.storekit, local product definitions
+scripts/               build_feeds.py, build_chrome.sh, finish_chrome_manifest.py,
+                       single-copy.sh, uninstall.sh, heuristic vector tools
+Tests/                 engine, entitlement, duplicate-install and heuristic tests
+dist/                  generated feeds and the Chrome build (git-ignored)
 ```
