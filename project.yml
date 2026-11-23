@@ -28,7 +28,7 @@ settings:
     DEAD_CODE_STRIPPING: YES
     CLANG_ENABLE_MODULES: YES
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "2"
     # Pinned here rather than left to Xcode's UI: `xcodegen generate` rewrites
     # the project, so a team set only in the Signing & Capabilities tab is lost
     # on every regeneration and the build then fails for want of a profile.
